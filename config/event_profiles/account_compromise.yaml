@@ -1,0 +1,4 @@
+id: account_compromise
+extends: base_windows
+include_packs:
+  - security_auth

@@ -1,0 +1,8 @@
+id: insider_ip_theft
+extends: base_windows
+include_packs:
+  - sysmon_core
+  - security_auth
+  - system_services
+  - powershell
+# Subset: no 4720/4732/5861 by default for insider; add via case event_profile override if needed

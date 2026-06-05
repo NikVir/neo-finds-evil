@@ -1,0 +1,9 @@
+id: intrusion
+extends: base_windows
+include_packs:
+  - sysmon_core
+  - security_auth
+  - security_account
+  - system_services
+  - powershell
+  - wmi

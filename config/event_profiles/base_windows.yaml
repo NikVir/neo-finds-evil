@@ -1,0 +1,121 @@
+# Base Windows EVTX taxonomy — Plaso source_name + event_identifier filters.
+# See: src/forensics/event_profile.py
+
+id: base_windows
+description: Core Sysmon, Security, System, PowerShell, WMI events
+
+events:
+  # Sysmon — Microsoft-Windows-Sysmon/Operational
+  - pack: sysmon_core
+    plaso_source: Microsoft-Windows-Sysmon
+    eid: 1
+    name: ProcessCreate
+    xml_fields: [ProcessGuid, ParentProcessGuid, Image, CommandLine, Hashes, User, ProcessId, ParentProcessId]
+  - pack: sysmon_core
+    plaso_source: Microsoft-Windows-Sysmon
+    eid: 3
+    name: NetworkConnection
+    xml_fields: [ProcessGuid, Image, DestinationIp, DestinationPort, Protocol, ProcessId]
+  - pack: sysmon_core
+    plaso_source: Microsoft-Windows-Sysmon
+    eid: 5
+    name: ProcessTerminated
+    xml_fields: [ProcessGuid, Image, ProcessId]
+  - pack: sysmon_core
+    plaso_source: Microsoft-Windows-Sysmon
+    eid: 7
+    name: ImageLoaded
+    xml_fields: [ProcessGuid, Image, ImageLoaded, ProcessId]
+  - pack: sysmon_core
+    plaso_source: Microsoft-Windows-Sysmon
+    eid: 8
+    name: CreateRemoteThread
+    xml_fields: [ProcessGuid, SourceImage, TargetImage, NewThreadId]
+  - pack: sysmon_core
+    plaso_source: Microsoft-Windows-Sysmon
+    eid: 10
+    name: ProcessAccess
+    xml_fields: [ProcessGuid, SourceImage, TargetImage, GrantedAccess]
+  - pack: sysmon_core
+    plaso_source: Microsoft-Windows-Sysmon
+    eid: 11
+    name: FileCreate
+    xml_fields: [ProcessGuid, Image, TargetFilename, ProcessId, CreationUtcTime]
+  - pack: sysmon_core
+    plaso_source: Microsoft-Windows-Sysmon
+    eid: 22
+    name: DnsQuery
+    xml_fields: [ProcessGuid, Image, QueryName, QueryStatus, ProcessId]
+  - pack: sysmon_core
+    plaso_source: Microsoft-Windows-Sysmon
+    eid: 23
+    name: FileDelete
+    xml_fields: [ProcessGuid, Image, TargetFilename, ProcessId]
+  - pack: sysmon_core
+    plaso_source: Microsoft-Windows-Sysmon
+    eid: 12
+    name: RegistryCreate
+    xml_fields: [ProcessGuid, Image, TargetObject, ProcessId]
+  - pack: sysmon_core
+    plaso_source: Microsoft-Windows-Sysmon
+    eid: 13
+    name: RegistryValueSet
+    xml_fields: [ProcessGuid, Image, TargetObject, Details, ProcessId]
+  - pack: sysmon_core
+    plaso_source: Microsoft-Windows-Sysmon
+    eid: 14
+    name: RegistryDelete
+    xml_fields: [ProcessGuid, Image, TargetObject, ProcessId]
+
+  # Security — Microsoft-Windows-Security-Auditing
+  - pack: security_auth
+    plaso_source: Microsoft-Windows-Security-Auditing
+    eid: 4624
+    name: SuccessfulLogon
+    xml_fields: [TargetUserName, LogonType, IpAddress, WorkstationName, ProcessName]
+  - pack: security_auth
+    plaso_source: Microsoft-Windows-Security-Auditing
+    eid: 4625
+    name: FailedLogon
+    xml_fields: [TargetUserName, LogonType, IpAddress, FailureReason]
+  - pack: security_auth
+    plaso_source: Microsoft-Windows-Security-Auditing
+    eid: 4688
+    name: ProcessCreation
+    xml_fields: [SubjectUserName, NewProcessName, CommandLine, ProcessId, ParentProcessName]
+  - pack: security_account
+    plaso_source: Microsoft-Windows-Security-Auditing
+    eid: 4720
+    name: UserAccountCreated
+    xml_fields: [TargetUserName, SubjectUserName]
+  - pack: security_account
+    plaso_source: Microsoft-Windows-Security-Auditing
+    eid: 4732
+    name: MemberAddedToGroup
+    xml_fields: [TargetUserName, SubjectUserName, MemberName, TargetSid]
+
+  # System
+  - pack: system_services
+    plaso_source: Service Control Manager
+    eid: 7045
+    name: ServiceInstalled
+    xml_fields: [ServiceName, ImagePath, AccountName, StartType]
+  - pack: system_services
+    plaso_source: Microsoft-Windows-Eventlog
+    eid: 104
+    name: LogCleared
+    xml_fields: [Channel]
+
+  # PowerShell
+  - pack: powershell
+    plaso_source: Microsoft-Windows-PowerShell
+    eid: 4104
+    name: ScriptBlockLogging
+    xml_fields: [ScriptBlockText, Path, MessageNumber]
+
+  # WMI
+  - pack: wmi
+    plaso_source: Microsoft-Windows-WMI-Activity
+    eid: 5861
+    name: WmiConsumerBinding
+    xml_fields: [Consumer, Filter, Namespace]

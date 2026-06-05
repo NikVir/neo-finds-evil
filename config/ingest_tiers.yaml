@@ -1,0 +1,53 @@
+# Progressive ingest tiers — Phase 1 extracts all artifacts; Phase 2 loads by tier.
+# See docs/evidence-dataset.md (pipeline section)
+
+tiers:
+  triage:
+    artifacts: [pslist, netscan, evtx]
+  execution:
+    adds: [dlllist, shimcache, prefetch]
+  filesystem:
+    adds: [mft, path_catalog]
+  exfil:
+    adds: [usb, media_exif, bulk]
+  full:
+    all: true
+
+triage_evtx_packs:
+  intrusion: [sysmon_core, security_auth, system_services, powershell]
+  hybrid: [sysmon_core, security_auth, system_services, powershell]
+  account_compromise: [security_auth]
+  insider_ip_theft: [sysmon_core, security_auth, system_services]
+  legacy_intrusion: [security_auth, system_services]
+
+triage_playbook_steps:
+  intrusion:
+    - baseline_summary
+    - event_coverage
+    - sysmon_spawn
+    - external_connections
+    - dns_c2
+    - lateral_logons
+    - failed_logons
+
+# Playbook steps unlocked once execution-tier artifacts (shimcache/prefetch/
+# dlllist) are loaded. Cumulative with triage steps. Parallel to triage_playbook_steps.
+execution_playbook_steps:
+  intrusion:
+    - psexec_lateral
+    - suspicious_execution_ancestry
+    - lateral_tool_reuse
+    - credential_tooling
+  insider_ip_theft:
+    - baseline_summary
+    - event_coverage
+    - cloud_sync_connections
+    - external_connections
+    - after_hours_logons
+    - DNS-EGRESS
+  account_compromise:
+    - baseline_summary
+    - event_coverage
+    - failed_logons
+    - lateral_logons
+    - after_hours_logons

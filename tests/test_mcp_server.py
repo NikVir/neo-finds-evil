@@ -288,8 +288,14 @@ def test_audit_records_error_status(tmp_path, monkeypatch):
     assert entry["status"] == "write_rejected"
 
 
-def test_audit_never_raises_on_bad_path(monkeypatch, capsys):
-    monkeypatch.setenv("FORENSICS_MCP_AUDIT", "/nonexistent-root-dir-xyz/cannot/write.log")
+def test_audit_never_raises_on_bad_path(monkeypatch, capsys, tmp_path):
+    # Root the audit path *under a regular file* so creating its parent dir is
+    # impossible (a path component is a file -> NotADirectoryError). This fails
+    # for every uid, including root in Docker, where a "/nonexistent" path would
+    # otherwise be creatable and the warning would never fire.
+    blocker = tmp_path / "iam-a-file"
+    blocker.write_text("x")
+    monkeypatch.setenv("FORENSICS_MCP_AUDIT", str(blocker / "cannot" / "write.log"))
     # must not raise even though the path is unwritable
     m.write_audit({"ts": "now", "tool": "x"})
     assert "audit write failed" in capsys.readouterr().err

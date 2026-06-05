@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 import forensics.rebuild as rb
 from forensics.case import CaseManifest
 from forensics.rebuild import (
@@ -31,6 +33,17 @@ from forensics.rebuild import (
 
 _ROOT = Path(__file__).resolve().parents[1]
 _CASE = _ROOT / "config" / "cases" / "srl-2018.yaml"
+
+# The srl-2018 case manifest and its per-host YAMLs carry local ingest paths and
+# are intentionally NOT shipped in the public package. Tests that parse the real
+# case skip cleanly when it is absent (a fresh clone), rather than fail.
+_REQUIRES_CASE = pytest.mark.skipif(
+    not _CASE.exists(),
+    reason=(
+        "requires full ingest config (config/cases/srl-2018.yaml + config/hosts/*.yaml, "
+        "not shipped in the public package; see docs/evidence-dataset.md pipeline section)"
+    ),
+)
 
 
 # --- default_workers --------------------------------------------------------
@@ -212,6 +225,7 @@ def _case() -> CaseManifest:
     return CaseManifest.from_yaml(_CASE, project_root=_ROOT)
 
 
+@_REQUIRES_CASE
 def test_build_plan_parses_all_seven_hosts_and_flags_disk_only():
     plan = build_plan(
         _case(),
@@ -232,6 +246,7 @@ def test_build_plan_parses_all_seven_hosts_and_flags_disk_only():
     assert dmz.pslist_present is False
 
 
+@_REQUIRES_CASE
 def test_build_plan_selects_intrusion_hunts_including_fixed_summary():
     plan = build_plan(
         _case(),
@@ -258,6 +273,7 @@ def test_build_plan_selects_intrusion_hunts_including_fixed_summary():
     assert "event_coverage" in plan.hunts
 
 
+@_REQUIRES_CASE
 def test_format_plan_is_side_effect_free_text():
     plan = build_plan(
         _case(),
@@ -384,6 +400,7 @@ def _run_rebuild(monkeypatch, tmp_path):
     return plan, summary
 
 
+@_REQUIRES_CASE
 def test_summary_written_even_when_verify_raises(monkeypatch, tmp_path):
     def boom(plan, log):
         raise RuntimeError("verify exploded")
@@ -401,6 +418,7 @@ def test_summary_written_even_when_verify_raises(monkeypatch, tmp_path):
     assert written["hunt_status_counts"]["pass"] == 1
 
 
+@_REQUIRES_CASE
 def test_summary_marks_verify_partial_on_timeout(monkeypatch, tmp_path):
     monkeypatch.setattr(
         rb,

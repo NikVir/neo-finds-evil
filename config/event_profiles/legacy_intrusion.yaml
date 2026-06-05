@@ -1,0 +1,9 @@
+id: legacy_intrusion
+description: Pre-Sysmon intrusion — Security, System, PowerShell, WMI (no Sysmon)
+extends: base_windows
+include_packs:
+  - security_auth
+  - security_account
+  - system_services
+  - powershell
+  - wmi
