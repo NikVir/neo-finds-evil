@@ -14,6 +14,25 @@ Modern IR runs at machine speed, and an LLM agent can drive forensic CLIs faster
 
 ---
 
+## Submission compliance
+
+Every FIND EVIL! required component and exactly where to find it:
+
+| Required component | Location |
+|---|---|
+| Public code repository | this repo — *pending: public GitHub mirror (URL added at submission)* |
+| Open-source license | [`./LICENSE`](./LICENSE) — Apache-2.0 |
+| README with setup instructions | this file — [Setup / Run](#setup--run-judge-runbook) |
+| Step-by-step run instructions | this file — [Setup / Run](#setup--run-judge-runbook) |
+| Text description of features | this file (above) + [`docs/`](./docs/) |
+| Demonstration video | *pending — link added at submission* |
+| Architecture diagram | [`docs/architecture.png`](docs/architecture.png) (described in [`docs/architecture.md`](docs/architecture.md)) |
+| Evidence Dataset Documentation | [`docs/evidence-dataset.md`](docs/evidence-dataset.md) |
+| Accuracy Report | [`docs/accuracy-report.md`](docs/accuracy-report.md) |
+| Agent Execution Logs | [`docs/execution-logs/`](docs/execution-logs/) |
+
+---
+
 ## Architecture
 
 ![Architecture](docs/architecture.png)

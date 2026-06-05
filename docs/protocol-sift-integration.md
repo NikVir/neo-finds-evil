@@ -146,7 +146,7 @@ A real `run_hunt('credential_tooling')` over stdio returned `pwdumpx.exe` on `SR
 
 | Tool | Signature | Wraps | Notes |
 |---|---|---|---|
-| `list_hunts` | `() -> [{name, description, tier}]` | `hunt.py:QUERIES` keys + `hunt_deps.py` | Discoverability; 32 hunts today. |
+| `list_hunts` | `() -> [{name, description, tier}]` | `hunt.py:QUERIES` keys + `hunt_deps.py` | Discoverability; 31 hunts today. |
 | `run_hunt` | `(name: str, params?: dict) -> {rows, parameters}` | `hunt.py:run_hunt()` (line 417) | Named, vetted, parameterized queries — the safe default. |
 | `query_graph` | `(cypher: str) -> {rows}` | `Neo4jClient.query(timeout=)` (neo4j_client.py:144) | **Write-rejected** (see §4.2), server-side timeout, mandatory `LIMIT`. For ad-hoc reasoning. |
 | `get_host_summary` | `(hostname: str) -> {events_by_id, processes, edges, …}` | anchored counts à la `coverage.py` | Per-host orientation; Host-anchored, never stacked OPTIONAL MATCH (per commit cae2671). |
@@ -197,7 +197,7 @@ A real `run_hunt('credential_tooling')` over stdio returned `pwdumpx.exe` on `SR
 1. **MCP SDK / transport:** Python `mcp`/FastMCP over **stdio** (simplest for Claude Code local) vs HTTP? Recommend stdio.
 2. **Registration alongside SIFT without clobbering:** SIFT *overwrites* `~/.claude/settings.json`. If we adopt SIFT's config for the demo, we must **merge** an `mcpServers` block (and re-add our own permissions) rather than let either overwrite the other. Do we ship a combined `settings.json`, or register the MCP server per-project (`.mcp.json` in the case dir)? Recommend per-project `.mcp.json` so we never fight SIFT's global file.
 3. **Read-only DB user:** Neo4j Community is single-DB/single-user — a true read-only role isn't really available, so the *tool layer* is the enforced boundary. Acceptable? (We should still document it as the boundary and test it hard.)
-4. **Traceability scope:** add `event_id`+`channel` to *all 32* hunts, or just the incident-relevant subset for the demo? (Suggest: the subset that appears in FINDINGS, then generalize.)
+4. **Traceability scope:** add `event_id`+`channel` to *all 31* hunts, or just the incident-relevant subset for the demo? (Suggest: the subset that appears in FINDINGS, then generalize.)
 5. **Demo narrative:** run real Protocol SIFT (sandbox or a SIFT VM) on `rd01` per-artifact, then show our MCP tools answering the cross-host question on the same SRL data — does the team want a side-by-side, or our layer driving SIFT tools via the agent?
 6. **Scope boundary:** the MCP server stays *read-only query/correlation*. Extraction/ingest remains our Phase-1 pipeline (not an MCP tool) — agreed? (Keeps the write path out of the agent entirely — another architectural-guardrail win.)
 7. **Attribution/licensing:** README credits Rob Lee / Protocol SIFT (SANS / teamdfir) explicitly as the framework we extend; confirm wording for the Devpost submission.
@@ -210,5 +210,5 @@ A real `run_hunt('credential_tooling')` over stdio returned `pwdumpx.exe` on `SR
 - `grep -rniE "mcp|fastmcp|neo4j|graph|cypher|server.py"` across the repo → **0 hits**. Confirms no MCP/graph anywhere.
 - Sandboxed install `HOME=/tmp/sift-home bash install.sh` → exit 0; produced only `~/.claude/{CLAUDE.md,settings.json,settings.local.json,skills/*,case-templates,analysis-scripts}`; `settings.json` validates as JSON.
 - Smoke test: `file`/`md5sum`/`strings` (all in SIFT's allowlist) on a throwaway `/tmp/sift-smoke.bin` → ran cleanly.
-- Our wrap targets confirmed present: `hunt.py:run_hunt` (L417), `QUERIES` (32 hunts), `neo4j_client.py` `query(timeout=)` (L144) / `query_guarded` (L158) / `stats_query_timeout` (L23) / `run_with_retry` (L50); console script `forensics-ingest = forensics.cli:main`.
+- Our wrap targets confirmed present: `hunt.py:run_hunt` (L417), `QUERIES` (31 hunts), `neo4j_client.py` `query(timeout=)` (L144) / `query_guarded` (L158) / `stats_query_timeout` (L23) / `run_with_retry` (L50); console script `forensics-ingest = forensics.cli:main`.
 - **Our Neo4j graph and `~/.claude` were not touched.** Inspection was read-only; the install was sandboxed to `/tmp`.
