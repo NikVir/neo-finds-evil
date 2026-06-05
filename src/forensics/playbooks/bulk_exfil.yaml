@@ -1,0 +1,13 @@
+id: bulk_exfil
+description: Bulk-extractor email/URL exfil signals (requires enrichment.bulk_extractor)
+steps:
+  - id: BULK-EXFIL
+    hypothesis_ref: EXFIL-CLOUD
+    hunt: bulk_exfil_signals
+    human_label: Email and URL references from bulk_extractor
+    expected_signals: EmailAddress or URL nodes with REFERENCED from Host
+  - id: BULK-DNS
+    hypothesis_ref: EXFIL-CLOUD
+    hunt: bulk_dns_corroboration
+    human_label: Bulk URLs matching Sysmon DNS domains
+    expected_signals: URL-SAME_DOMAIN-Domain linked to RESOLVED_DNS events

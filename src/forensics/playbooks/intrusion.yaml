@@ -1,0 +1,93 @@
+id: intrusion
+description: Malware, C2, and lateral movement hunting (EVTX taxonomy)
+steps:
+  - id: baseline_summary
+    hypothesis_ref: null
+    hunt: summary
+    human_label: Graph coverage summary
+    expected_signals: process and connection counts
+  - id: event_coverage
+    hypothesis_ref: null
+    hunt: event_coverage
+    human_label: EVTX event ID coverage
+    expected_signals: Sysmon and Security EIDs present after profile export
+  - id: sysmon_spawn
+    hypothesis_ref: null
+    hunt: sysmon_process_spawn
+    human_label: Sysmon process parent-child chains
+    expected_signals: SPAWNED edges with source sysmon
+  - id: external_connections
+    hypothesis_ref: null
+    hunt: external_connections
+    human_label: Non-RFC1918 connections
+    expected_signals: C2 or unexpected egress IPs
+  - id: dns_c2
+    hypothesis_ref: null
+    hunt: dns_queries
+    human_label: DNS queries (Sysmon EID 22)
+    expected_signals: suspicious domains
+  - id: suspicious_processes
+    hypothesis_ref: null
+    hunt: suspicious_processes
+    human_label: Non-core executables
+    expected_signals: unknown or masquerading binaries
+  - id: process_tree
+    hypothesis_ref: null
+    hunt: process_tree
+    human_label: Parent-child process chains
+    expected_signals: unusual spawn relationships
+  - id: lateral_logons
+    hypothesis_ref: null
+    hunt: lateral_logons
+    human_label: Network and RDP logons (4624 type 3/10)
+    expected_signals: remote logon types with source IP
+  - id: failed_logons
+    hypothesis_ref: null
+    hunt: failed_logons
+    human_label: Failed logon attempts (4625)
+    expected_signals: brute-force or wrong-password patterns
+  - id: registry_persistence
+    hypothesis_ref: null
+    hunt: registry_persistence
+    human_label: Registry Run/Services modifications
+    expected_signals: Sysmon 12/13/14 on Run keys
+  - id: service_install
+    hypothesis_ref: null
+    hunt: service_install
+    human_label: New services (7045)
+    expected_signals: suspicious service binary paths
+  - id: log_cleared
+    hypothesis_ref: null
+    hunt: log_cleared
+    human_label: Event log cleared (104)
+    expected_signals: anti-forensics log wipe
+  - id: powershell_script
+    hypothesis_ref: null
+    hunt: powershell_script
+    human_label: PowerShell script blocks (4104)
+    expected_signals: encoded or suspicious script content
+  - id: sysmon_files
+    hypothesis_ref: null
+    hunt: sysmon_file_touch
+    human_label: Sysmon file create/delete
+    expected_signals: dropped files linked to processes
+  - id: psexec_lateral
+    hypothesis_ref: LATERAL-MOVEMENT
+    hunt: psexec_lateral
+    human_label: PsExec lateral movement (EXECUTED + 7045 service)
+    expected_signals: PSEXESVC execution and PsExec service installs across hosts
+  - id: suspicious_execution_ancestry
+    hypothesis_ref: LATERAL-MOVEMENT
+    hunt: suspicious_execution_ancestry
+    human_label: Suspicious process ancestry (behavioral)
+    expected_signals: dropper/backdoor chains, service-stub or short-named parents spawning shells
+  - id: lateral_tool_reuse
+    hypothesis_ref: LATERAL-MOVEMENT
+    hunt: lateral_tool_reuse
+    human_label: Cross-host tool reuse (shared toolkit)
+    expected_signals: same binary executed on multiple hosts (denylist-filtered)
+  - id: credential_tooling
+    hypothesis_ref: CRED-THEFT
+    hunt: credential_tooling
+    human_label: Credential-theft tooling (name-heuristic)
+    expected_signals: Mimikatz-family / credential-dumper binaries in execution evidence

@@ -1,0 +1,93 @@
+id: insider_ip_theft
+description: Insider IP theft — cloud egress, sensitive files, logon timing
+steps:
+  - id: baseline_summary
+    hypothesis_ref: null
+    hunt: summary
+    human_label: Graph coverage summary
+    expected_signals: events and file nodes present after EVTX/MFT
+  - id: VACATION-SYNC
+    hypothesis_ref: VACATION-SYNC
+    hunt: cloud_sync_connections
+    human_label: Mobile/home sync (iCloud Photos, Drive, OneDrive)
+    expected_signals: iCloud/Google/OneDrive processes with external IPs
+  - id: EXFIL-CLOUD
+    hypothesis_ref: EXFIL-CLOUD
+    hunt: cloud_sync_connections
+    human_label: Consumer cloud sync egress
+    expected_signals: OneDrive, Google Drive, iCloud to external IPs
+  - id: EXFIL-CLOUD-2
+    hypothesis_ref: EXFIL-CLOUD
+    hunt: external_connections
+    human_label: All non-internal connections
+    expected_signals: upload-heavy ports 443 to cloud ranges
+  - id: STAGING-LOCAL
+    hypothesis_ref: STAGING-LOCAL
+    hunt: path_discover
+    human_label: Scored path discovery (SRL / sensitive patterns)
+    expected_signals: File paths with discovery score >= 0.4
+  - id: STAGING-LOCAL-2
+    hypothesis_ref: STAGING-LOCAL
+    hunt: sensitive_file_touch
+    human_label: Tagged sensitive files
+    expected_signals: File nodes with sensitive=true or type=mft
+  - id: AFTER-HOURS
+    hypothesis_ref: AFTER-HOURS
+    hunt: after_hours_logons
+    human_label: Security 4624 logons (review timestamps)
+    expected_signals: WindowsEvent eventId 4624 with timestamp
+  - id: EVTX-COVERAGE
+    hypothesis_ref: null
+    hunt: event_coverage
+    human_label: EVTX taxonomy coverage by event ID
+    expected_signals: Sysmon 1/3/11/22 and Security 4624 counts
+  - id: SYSMON-SPAWN
+    hypothesis_ref: null
+    hunt: sysmon_process_spawn
+    human_label: Sysmon process creation chain
+    expected_signals: Parent-child SPAWNED from EID 1
+  - id: DNS-EGRESS
+    hypothesis_ref: EXFIL-CLOUD
+    hunt: dns_queries
+    human_label: DNS queries by process
+    expected_signals: cloud or C2 domain lookups
+  - id: LOG-CLEARED
+    hypothesis_ref: null
+    hunt: log_cleared
+    human_label: Event log cleared (anti-forensics)
+    expected_signals: EID 104 entries
+  - id: POWERSHELL
+    hypothesis_ref: null
+    hunt: powershell_script
+    human_label: PowerShell script block logging
+    expected_signals: EID 4104 script content
+  - id: EXFIL-USB
+    hypothesis_ref: EXFIL-USB
+    hunt: usb_insertions
+    human_label: USB device insertions (registry JSONL)
+    expected_signals: USBDevice nodes with firstSeen/lastSeen
+  - id: VACATION-SYNC-GEO
+    hypothesis_ref: VACATION-SYNC
+    hunt: photos_during_vacation
+    human_label: Photos taken during vacation window
+    expected_signals: MediaAsset takenAt in case vacation_window
+  - id: VACATION-SYNC-GPS
+    hypothesis_ref: VACATION-SYNC
+    hunt: photos_outside_home
+    human_label: Photos with GPS away from home_coordinates
+    expected_signals: MediaAsset latitude/longitude outside threshold
+  - id: EXECUTION-PREFETCH
+    hypothesis_ref: STAGING-LOCAL
+    hunt: prefetch_sensitive_paths
+    human_label: Prefetch execution on sensitive/discovered paths
+    expected_signals: EXECUTED prefetch edges on scored File nodes
+  - id: EXECUTION-SHIM
+    hypothesis_ref: STAGING-LOCAL
+    hunt: shimcache_staging
+    human_label: Shimcache execution under user/design/research paths
+    expected_signals: EXECUTED shimcache in staging-relevant directories
+  - id: EXECUTION-CORROBORATION
+    hypothesis_ref: STAGING-LOCAL
+    hunt: execution_corroboration
+    human_label: Execution evidence corroborated by Sysmon or EVTX
+    expected_signals: EXECUTED + CREATED or DESCRIBES on same File

@@ -1,0 +1,262 @@
+# Exclusion / category dictionaries for behavioral hunts.
+# Basenames are matched case-insensitively (the loader lowercases them).
+# Maintainable here — never hardcode these in Cypher.
+
+lateral_tool_reuse:
+  # Suppressed entirely from cross-host reuse: expected on many hosts (OS /
+  # platform / AV / VM) or are INCIDENT-RESPONDER tooling. Flagging responder
+  # tools as attacker spread would be a false positive (see FINDINGS.md §11).
+  denylist:
+    # --- Windows OS / shell core ---
+    - system
+    - registry
+    - smss.exe
+    - csrss.exe
+    - wininit.exe
+    - winlogon.exe
+    - services.exe
+    - lsass.exe
+    - lsm.exe
+    - svchost.exe
+    - explorer.exe
+    - userinit.exe
+    - dwm.exe
+    - taskhost.exe
+    - taskhostw.exe
+    - taskeng.exe
+    - spoolsv.exe
+    - searchindexer.exe
+    - searchprotocolhost.exe
+    - searchfilterhost.exe
+    - wmiprvse.exe
+    - wmiadap.exe
+    - mmc.exe
+    - conhost.exe
+    - dllhost.exe
+    - runonce.exe
+    - rundll32.exe
+    - regsvr32.exe
+    - msiexec.exe
+    - wuauclt.exe
+    - wuapp.exe
+    - trustedinstaller.exe
+    - mscorsvw.exe
+    - ngen.exe
+    - drvinst.exe
+    - rdpclip.exe
+    - ie4uinit.exe
+    - ielowutil.exe
+    - iexplore.exe
+    - msfeedssync.exe
+    - mrt.exe
+    - mrtstub.exe
+    - wermgr.exe
+    - werfault.exe
+    - wsqmcons.exe
+    - sppsvc.exe
+    - consent.exe
+    - logonui.exe
+    - lpremove.exe
+    - mcbuilder.exe
+    - helper.exe
+    - setup.exe
+    - aitagent.exe
+    # --- Windows utilities / applets (multi-host baseline executables) ---
+    - control.exe
+    - csc.exe
+    - cvtres.exe
+    - defrag.exe
+    - powercfg.exe
+    - vds.exe
+    - vdsldr.exe
+    - vssvc.exe
+    - taskmgr.exe
+    - tstheme.exe
+    - unregmp2.exe
+    - gpscript.exe
+    - eudcsettings.exe
+    - invalidatefntcache.exe
+    - iscsicpl.exe
+    - lodctr.exe
+    - unlodctr.exe
+    - makecab.exe
+    - mdsched.exe
+    - mofcomp.exe
+    - mpsyschk.exe
+    - msconfig.exe
+    - mstsc.exe
+    - notepad.exe
+    - odbcad32.exe
+    - rebuildsearchindex.exe
+    - regtlibv12.exe
+    - calc.exe
+    - magnify.exe
+    - sdclt.exe
+    - sdiagnhost.exe
+    - sidebar.exe
+    - winmail.exe
+    - dvdmaker.exe
+    - ehshell.exe
+    - plasrv.exe
+    - osppsvc.exe
+    - bfsvc.exe
+    - compmgmtlauncher.exe
+    - cleanup.exe
+    - isbew64.exe
+    - mspaint.exe
+    - snippingtool.exe
+    - stikynot.exe
+    - wfs.exe
+    - xpsrchvw.exe
+    - wmplayer.exe
+    - eudcedit.exe
+    # --- common apps / runtimes (multi-host, not lateral tools) ---
+    - cmd.exe
+    - java.exe
+    - javaw.exe
+    - jucheck.exe
+    - jusched.exe
+    - chrome_updater.exe
+    - verclsid.exe
+    - tweetdeck.exe
+    - skypeicon.exe
+    - wordicon.exe
+    - outicon.exe
+    # --- shell / IE helper DLLs ---
+    - shdocvw.dll
+    - shext.dll
+    - ieframe.dll
+    - mydocs.dll
+    - twext.dll
+    - zipfldr.dll
+    - acroiehelpershim.dll
+    - mcieplg.dll
+    # --- McAfee (AV platform) ---
+    - mcshield.exe
+    - mctray.exe
+    - mcupdate.exe
+    - mcscript_inuse.exe
+    - mcsacore.exe
+    - mfeann.exe
+    - mfefire.exe
+    - mfevtps.exe
+    - firesvc.exe
+    - firetray.exe
+    - frameworkservice.exe
+    - naprdmgr.exe
+    - shstat.exe
+    - udaterui.exe
+    - vstskmgr.exe
+    - framepkg.exe
+    - frminst.exe
+    - entvutil.exe
+    - mctadmin.exe
+    - scan32.exe
+    - scan64.exe
+    # --- VMware ---
+    - vmwareservice.exe
+    - vmwaretray.exe
+    - vmwareuser.exe
+    - vmupgradehelper.exe
+    - vmtoolsd.exe
+    - vmacthlp.exe
+    # --- common third-party apps ---
+    - adobearm.exe
+    - reader_sl.exe
+    - acrord32.exe
+    - armsvc.exe
+    - googleupdate.exe
+    - googlecrashhandler.exe
+    - chrome.exe
+    - firefox.exe
+    - skype.exe
+    - outlook.exe
+    - winword.exe
+    - excel.exe
+    # --- INCIDENT RESPONDER toolset (NOT attacker) — FINDINGS.md §11 ---
+    - f-response-ent.exe
+    - f-response-lm-srv.exe
+    - fresdisk.sys
+    - fresdiskl.sys
+    - mnemosyne_x64.sys
+    - mnemosynei386.sys
+    - usboesrv.exe
+    - usboebusdrv.sys
+    - usboedrv.sys
+    - usboeloaderdrv.sys
+
+  # Basename PREFIXES suppressed — generic software-deployment noise families
+  # (OS hotfixes, runtimes, AV installers) that land on multiple hosts together.
+  denylist_prefixes:
+    - windows-kb        # Windows hotfix installers
+    - ndp40-kb          # .NET 4.0 hotfix installers
+    - vcredist          # VC++ redistributables
+    - sae               # McAfee SaaS/SAE installer bundle
+    - setup             # generic installers (setup.exe already denylisted)
+    - mc                # McAfee installer/util family (mcconsol, mcscancheck, ...)
+    - mfe               # McAfee driver/util family
+
+  # Legitimate admin/recon utilities — surfaced but confidence capped at MEDIUM
+  # (dual-use: used by both admins and attackers).
+  dual_use:
+    - at.exe
+    - net.exe
+    - net1.exe
+    - wmic.exe
+    - reg.exe
+    - sc.exe
+    - schtasks.exe
+    - tasklist.exe
+    - ipconfig.exe
+    - whoami.exe
+    - nltest.exe
+    - quser.exe
+    - netstat.exe
+    - systeminfo.exe
+    - vssadmin.exe
+    - cscript.exe
+    - wscript.exe
+    - ping.exe
+
+  # Known offensive tooling — cross-host reuse is HIGH-signal (marker only;
+  # confidence still respects evidence type).
+  offensive:
+    - psexec.exe
+    - psexesvc.exe
+    - mimikatz.exe
+    - wce.exe
+    - gsecdump.exe
+    - pwdump.exe
+    - fgdump.exe
+    - procdump.exe
+    - sdelete.exe
+    - nc.exe
+    - ncat.exe
+    - netcat.exe
+    - winexe.exe
+
+credential_tooling:
+  # Credential-theft tool name PATTERNS (substring match against EXECUTED
+  # basenames). Matches are NAME-HEURISTIC / inferential: identity is inferred
+  # from naming families, NOT confirmed by hashing or binary analysis. The
+  # *katz* family pattern catches Mimikatz variants/wrappers (e.g. hydrakatz)
+  # without requiring the literal name 'mimikatz'.
+  patterns:
+    - mimikatz
+    - katz          # Mimikatz family / variants (hydrakatz, ...)
+    - mimilib
+    - sekurlsa
+    - lsadump
+    - gsecdump
+    - pwdump
+    - fgdump
+    - wce            # Windows Credential Editor
+    - lazagne
+    - samdump
+    - creddump
+    - cachedump
+    - hashdump
+    - procdump       # often used to dump lsass
+    - dumpert
+    - nanodump
+    - safetykatz

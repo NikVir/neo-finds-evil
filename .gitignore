@@ -1,0 +1,45 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.python-version.local
+
+# --- uv ---
+.uv/
+
+# --- Tooling caches ---
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# --- Neo4j / graph data (never commit the graph or backups) ---
+neo4j-data/
+data_extract/
+*.dump
+*.tar.gz
+*.tgz
+
+# --- Raw forensic artifacts (never commit evidence extracts) ---
+*.jsonl
+*.evtx
+*.plaso
+investigation/
+
+# --- Local agent / editor config ---
+.claude/settings.local.json
+.idea/
+.vscode/
+
+# --- Runtime audit log (a sanitized sample lives in docs/execution-logs/) ---
+mcp-audit.log
+
+# --- OS noise ---
+.DS_Store
+Thumbs.db
+tmp/
+scratchpad/
