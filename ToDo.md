@@ -10,6 +10,83 @@ a reason not to.
 
 ---
 
+## CURRENT STATE — what's actually left (updated 2026-06-09)
+
+**Read this section first.** The numbered work items further down (§§3–6) are the
+*original* plan and are kept for their build detail, but several are now finished —
+this section is the honest at-a-glance picture so you don't redo completed work.
+Same framing as the rest of the doc: no schedule, ordered by priority and by what
+unblocks what.
+
+### DONE (verified present in the repo)
+
+- **MCP server + tests** — `src/forensics/`; `forensics-graph` exposes the 5
+  read-only tools; the full test suite is green.
+- **Accuracy report incl. the VIGÍA benchmark** — `docs/accuracy-report.md`
+  (§6 "Benchmark: vigia-cases"); deterministic scorer `tools/vigia_score.py` with
+  `tests/test_vigia_score.py`; raw blind verdicts + report JSON under
+  `docs/benchmark/`. **This is Work Item 1 *and* Work Item 2 — both complete
+  (see §§3–4).**
+- **Submission compliance table + judge runbook** — `README.md` §"Submission
+  compliance".
+- **Evidence-dataset doc** — `docs/evidence-dataset.md`.
+- **Architecture diagram** — `docs/architecture.png` + editable
+  `docs/architecture.svg`.
+- **Apache-2.0 license** — `LICENSE`.
+- **Cold-clone "judge test"** — a first-time judge followed the README runbook
+  literally on a fresh clone; report at `~/judge-test-report.md` (**outside the
+  repo**, read-only dry-run). It confirmed that **once the graph is restored, the
+  headline cross-host capability genuinely works for a first-time user** (`uv sync`,
+  node-count sanity check `359788`, MCP `✔ Connected` with all 5 tools, the `spsql`
+  6-host correlation, and the `get_event` traceback all succeeded). It also surfaced
+  the doc gaps captured in (a)/(b) below.
+
+### REMAINING — the real priority order
+
+These are guaranteed-scored or unblock other items, so they come **before** the
+additive work in §§5–6. Do them in this order.
+
+**(a) GitHub flip + publish the graph release asset `graph-srl2018.tar.gz` —
+HIGHEST.** The judge test proved the runbook is **non-reproducible without this
+asset**: README Step 3 tells the reader to download `graph-srl2018.tar.gz`, which is
+currently *pending / unpublished*, so a true cold clone dead-ends before there is
+any graph to query. Publishing the repo to GitHub and attaching this release asset
+(with the real `gh release download` command wired into Step 3) is the single
+highest-value remaining task. The §7 integrity issue to file for Anna also waits on
+this flip.
+
+**(b) Small README fixes surfaced by the judge test** (all sourced from
+`~/judge-test-report.md`):
+- Note that the **restored data dir already carries credentials**, so `NEO4J_AUTH`
+  is **ignored on restore** (the password is baked into the backup's
+  `dbms/auth.ini`; changing it needs an in-DB `ALTER USER`, not just editing
+  `NEO4J_AUTH`).
+- State that the **`forensics-graph` MCP server runs independently of Protocol
+  SIFT** (the graph layer works without the Step 1 install).
+- Make the **`spsql` example self-contained**: give the actual working query
+  (`spsql` is a `targetUser` property on `WindowsEvent`, *not* a `UserAccount`; the
+  obvious `failed_logons` hunt is buried under `BASE-HUNT$` noise), and frame the
+  agent's schema-probe as **intended self-correction**, not a doc gap.
+- **Drop the unnecessary Node.js prerequisite** (Claude Code is a self-contained
+  binary here; every step worked without Node).
+
+**(c) Demo video (<5 min).** Must show a **self-correction** moment — candidates:
+the `df0398a` missing-`imagePath` recovery (accuracy report), or the `spsql` schema
+self-correction from the judge test. Wire the link into the README compliance
+table's "Demonstration video" row.
+
+**(d) Devpost write-up.**
+
+### Then — additive, only with room to spare (below (a)–(d))
+
+- **Work Item 3 — verdict/adjudication output layer (§5): VIABLE / unblocked.**
+  Item 2 landed well, so this is no longer conditional — but it is **additive polish
+  that sits BELOW the guaranteed-scored deliverables above.** The build guidance in
+  §5 still stands.
+- **Work Item 4 — case-file export bridge (§6): stretch goal, unchanged.**
+
+---
+
 ## 0. Where the project stands (one screen of context)
 
 `neo-finds-evil` is our SANS **FIND EVIL!** hackathon submission. What it does
@@ -125,6 +202,12 @@ and **Audit Trail Quality**. Honesty is explicitly rewarded over perfection.
 
 ## 3. WORK ITEM 1 — Submission compliance table in the README (do first, it's a hard gate)
 
+> **STATUS: ✅ DONE** (committed `89c194b`). `README.md` now has a "Submission
+> compliance" section mapping each required component to its exact location. The
+> guidance below is kept for reference. Remaining parenthesised cells (repo URL,
+> demo-video link) fill in as part of the (a)/(c) items in the current-state
+> section above.
+
 **Why:** Rob T. Lee warned in Slack that ~20% of projects in the last hackathon
 were **eliminated** for missing a required component (often just the open-source
 license file). He asked every team to put a table in the README mapping each
@@ -154,6 +237,29 @@ removes the single dumbest way to lose. It does not depend on any VIGÍA work.
 ---
 
 ## 4. WORK ITEM 2 — Benchmark our agent against `vigia-cases` (the main task)
+
+> **STATUS: ✅ DONE** (committed `4e7856b`). Section "Benchmark: vigia-cases" is in
+> `docs/accuracy-report.md`; the deterministic scorer is `tools/vigia_score.py`
+> (tests in `tests/test_vigia_score.py`); the blind per-case verdicts and the report
+> JSON are under `docs/benchmark/`.
+>
+> **Results — score_against tier (VIGIA-REAL-001 / 002 / 007, all truth MALICE):**
+> - **Verdict Accuracy 100% (3/3)**, **FPR 0%**, **FNR-MAL 0%** — all PASS their
+>   `SCORING_GUIDE.md` thresholds.
+> - **TTP Coverage: 14.3% exact / 42.9% family — FAILED the ≥60% bar.** Reported
+>   honestly: the misses are parent-vs-subtechnique granularity (e.g. agent `T1566`
+>   vs canonical `T1566.001`) plus defensible-but-divergent technique selection, not
+>   wrong verdicts.
+> - **Specificity gate VIGIA-REAL-005: PASS** — the agent emitted `SUSPICION` and did
+>   **not** over-call `MALICE`. Reported separately, never folded into the headline.
+>
+> **Method notes for whoever maintains this:** the result is committed; the eval
+> working dirs (`~/vigia-eval`) stay **outside** the repo; and the `vigia-cases`
+> dataset is **NOT vendored** — it is cited by URL + cloned commit `5453805`. The
+> isolation discipline (agent never sees `ground_truth.json`) is described in the
+> report's methodology block.
+>
+> The build guidance below is kept for reference / re-runs.
 
 **Why:** this produces a community-standard, source-backed accuracy report section
 using the exact dataset and metrics the organiser pointed teams at. It directly
@@ -223,7 +329,13 @@ specificity result. Cite the dataset (see §6).
 
 ---
 
-## 5. WORK ITEM 3 — A verdict/adjudication output layer (conditional: only if Item 2 lands well)
+## 5. WORK ITEM 3 — A verdict/adjudication output layer (VIABLE / unblocked — additive polish)
+
+> **STATUS: VIABLE / unblocked.** This was originally conditional on Item 2 landing
+> well; Item 2 (§4) landed well, so the condition is met. **But priority-wise it is
+> ADDITIVE polish and sits BELOW the guaranteed-scored deliverables** — see items
+> (a)–(d) in the "CURRENT STATE" section at the top. Build it only with room to
+> spare. The build guidance below is unchanged and still applies.
 
 **Why:** today our agent produces an investigative *narrative*. VIGÍA's framing
 shows the next step up: an *adjudicated* output with a formal verdict. Adding this
@@ -278,12 +390,14 @@ bridge is feasible at all. If you build it, target that richer schema.
   credit it. Use the citation block at the bottom of `vigia-cases/SCORING_GUIDE.md`
   (Tchijova, A. (2026). vigia-cases ...). Same principle by which we credit Rob
   Lee for Protocol SIFT — crediting upstream work is correct, not optional.
-- **Integrity nit worth reporting back:** when you run `sha256sum --check
-  hashes.sha256` in `vigia-cases`, every case file verifies EXCEPT `README.md`,
-  which fails — almost certainly because the README was edited (a contributor-credit
-  section added) after the hash file was generated. It's benign, but a stale hash
-  in an integrity-focused benchmark is worth a friendly GitHub issue to Anna.
-  Cheap, genuine community engagement in a Slack the judges read.
+- **Integrity nit worth reporting back — STILL OPEN, re-confirmed 2026-06-09
+  during the benchmark run:** when you run `sha256sum --check hashes.sha256` in
+  `vigia-cases` (cloned commit `5453805`), every case and ground-truth file verifies
+  EXCEPT `README.md`, which fails — almost certainly because the README was edited
+  (a contributor-credit section added) after the hash file was generated. It's
+  benign, but a stale hash in an integrity-focused benchmark is worth a friendly
+  GitHub issue to Anna. **File it when we flip to GitHub** (it pairs with item (a)
+  above) — cheap, genuine community engagement in a Slack the judges read.
 - **Don't conflate the layers in the write-up.** Be precise that the VIGÍA
   benchmark measures verdict reasoning over *curated artifacts*, while our graph
   demo measures *cross-host correlation over raw-scale evidence*. They are two
