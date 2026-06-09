@@ -69,7 +69,7 @@ A live write-rejection (the agent tried `MATCH (n) DETACH DELETE n`) and its aud
 ### Prerequisites
 
 - **SANS SIFT Workstation** (or any Linux host) with **Docker**.
-- **Node.js + Claude Code** (`claude` on PATH).
+- **Claude Code** (`claude` on PATH).
 - **[uv](https://docs.astral.sh/uv/)** (Python package/lock manager).
 - **Protocol SIFT** (the framework this extends).
 
@@ -82,6 +82,8 @@ curl -fsSL https://raw.githubusercontent.com/teamdfir/protocol-sift/main/install
 ```
 
 > **Heads-up (we hit this):** the installer **overwrites** `~/.claude/{CLAUDE.md,settings.json,settings.local.json}` (backing them up to `.bak-<ts>` first). If you already use Claude Code, back up `~/.claude/` first, or inspect `install.sh` before running. This project registers its MCP server **per-project** via a committed `.mcp.json`, specifically so it never fights Protocol SIFT's global config. Details: `docs/protocol-sift-integration.md` §0/§6.
+
+> **Independence note.** The `forensics-graph` MCP server and the correlation graph are self-contained and run **independently of Protocol SIFT**. Protocol SIFT provides the per-artifact forensic tools this project complements and extends; installing it is required to reproduce the full agent environment, but the graph layer itself does not depend on it.
 
 ### 2. Clone this repo and sync dependencies
 
@@ -116,7 +118,9 @@ docker exec neo4j-forensics cypher-shell -u neo4j -p forensics123 "MATCH (n) RET
 # expect ~359,788 nodes
 ```
 
-> `forensics123` is the **documented localhost demo-container password** for this self-contained graph. It is not a secret and is not reused for anything else; the container binds to `127.0.0.1` only. Change it (and `.mcp.json`'s `NEO4J_PASSWORD`) if you expose the port.
+> `forensics123` is the **documented localhost demo-container password** for this self-contained graph. It is not a secret and is not reused for anything else; the container binds to `127.0.0.1` only.
+>
+> **Note — credentials are baked into the restored data dir.** The restored data directory already contains its credentials (`neo4j` / `forensics123`), so `NEO4J_AUTH` is **ignored when starting over an existing store** — this is expected, and the baked password is what `.mcp.json` and the sanity-check commands use. To change it (e.g. before exposing the port), use an in-database `ALTER USER` and update `.mcp.json`'s `NEO4J_PASSWORD` — editing `NEO4J_AUTH` alone will not work on a restored store.
 
 ### 4. Register the MCP server
 
@@ -147,6 +151,18 @@ Then paste a question the graph can answer but a per-artifact tool cannot — th
 > *"The account `spsql` was brute-forced in this case. Using only the `forensics-graph` MCP tools, trace its activity across all hosts — where did it log in, what is it associated with, and pull one specific source event via `get_event` to anchor the evidence trail."*
 
 The agent will discover the schema, run a cross-host correlation, and resolve a single failed-logon event (e.g. `SRL-DMZFTP:74648`) back to its source `.evtx` — the exact trace recorded in **[docs/execution-logs/](docs/execution-logs/)**.
+
+> **What you'll see — an empty first result is expected.** The agent typically probes the graph schema first; an initial empty result followed by a corrected query is **intended self-correction**, not an error. `spsql` is not a `UserAccount` node — it lives as the `targetUser` property on `WindowsEvent` nodes, and the relevant property keys are `computer` / `id` / `eventId` (not `host` / `event_id`). To reproduce the headline result directly, the productive cross-host view groups `spsql` events by host and event id:
+>
+> ```cypher
+> // via query_graph — spsql activity correlated across hosts
+> MATCH (e:WindowsEvent)
+> WHERE e.targetUser = 'spsql'
+> RETURN e.computer AS host, e.eventId AS eventId, count(*) AS events
+> ORDER BY host, eventId
+> ```
+>
+> This surfaces the brute force — `4625` failures on `SRL-DMZFTP` from `172.16.4.5` — then the follow-on `4624` successes and `4688` process-creates across `SRL-DC`, `SRL-FILE`, `SRL-RD01`, `SRL-RD02`, and `SRL-WKSTN05`. Prefer this over the `failed_logons` hunt, whose top rows are dominated by `BASE-HUNT$` machine-account noise.
 
 ---
 
