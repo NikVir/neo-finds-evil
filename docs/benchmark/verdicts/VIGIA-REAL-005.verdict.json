@@ -1,0 +1,20 @@
+{
+  "case_id": "VIGIA-REAL-005",
+  "verdict": "SUSPICION",
+  "confidence": 0.6,
+  "mitre_ttps": ["T1027", "T1486"],
+  "key_iocs": [
+    "AES-encrypted README file in user's Documents (no password available)",
+    "GPG/PGP asymmetrically-encrypted 'keys' file in Downloads",
+    "BitLocker full-disk encrypted volume labeled 'R2D2'"
+  ],
+  "claims": [
+    {"claim": "An AES-encrypted README exists in the user's Documents directory", "status": "CONFIRMED", "rationale": "ART-001 states README is encrypted with AES with no password available."},
+    {"claim": "A GPG/PGP asymmetrically-encrypted 'keys' file exists in Downloads", "status": "CONFIRMED", "rationale": "ART-001/ART-003 describe a 'keys' file encrypted with GPG/PGP public/private key."},
+    {"claim": "A BitLocker full-disk-encrypted volume named 'R2D2' is present", "status": "CONFIRMED", "rationale": "ART-002 states BitLocker FDE is active on a volume named R2D2."},
+    {"claim": "The encryption was used to conceal communication with an external party", "status": "INFERRED", "rationale": "Asymmetric encryption implies a counterparty, but no recipient identity, message content, or exfiltration is established in the artifacts."},
+    {"claim": "The encrypted content is illicit or the activity is malicious", "status": "INFERRED", "rationale": "No decrypted content, victim, malware, or unauthorized act is present; malice is asserted by the anomaly labels, not demonstrated."}
+  ],
+  "null_hypothesis_considered": "Jane is a privacy- and security-conscious user employing entirely standard, lawful encryption tools (AES file encryption, BitLocker FDE, GPG/PGP messaging). Multiple encryption layers and a whimsical volume name ('R2D2') are common among ordinary users, professionals, and journalists and do not by themselves indicate any malicious act, exfiltration, or illegal content.",
+  "verdict_rationale": "Concealment via layered encryption is anomalous and warrants scrutiny, but no artifact reveals the content, a counterparty, malware, or any unauthorized act, so the benign privacy explanation cannot be ruled out and malice cannot be confirmed."
+}

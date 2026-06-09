@@ -1,0 +1,33 @@
+{
+  "case_id": "VIGIA-REAL-001",
+  "verdict": "MALICE",
+  "confidence": 0.95,
+  "mitre_ttps": [
+    "T1040",
+    "T1557",
+    "T1539",
+    "T1592.001",
+    "T1070.004",
+    "T1588.002"
+  ],
+  "key_iocs": [
+    "DefaultUserName = Mr. Evil (RegisteredOwner = Greg Schardt)",
+    "ComputerName = N-1A9ODN6ZXK4LQ",
+    "Intercepted pcap at C:\\Documents and Settings\\Mr. Evil\\interception (victim: Windows CE Pocket PC; login.passport.com, mobile.msn.com, MSN Hotmail)",
+    "NetStumbler (netstumblerinstaller_0_4_0.exe), Ethereal (ethereal-setup-0.10.6.exe), WinPcap (WinPcap_3_01_a.exe), Look@LAN (lalsetup250.exe) in Recycle Bin",
+    "IRC channels #Elite.Hackers.UnderNet, #evilfork.EFnet, #ISO-WAREZ.EFnet; nick mrevilrulez",
+    "mrevilrulez@yahoo.com; SMTP whoknowsme@sbcglobal.net",
+    "Image MD5 aee4fcd9301c03b3b054623ca261959a"
+  ],
+  "claims": [
+    {"claim": "A wireless-scanning/war-driving tool (NetStumbler) was installed on the host", "status": "CONFIRMED", "rationale": "netstumblerinstaller_0_4_0.exe present in Recycle Bin per ART-004"},
+    {"claim": "A packet sniffer (Ethereal) and capture driver (WinPcap) were installed", "status": "CONFIRMED", "rationale": "ethereal-setup-0.10.6.exe and WinPcap_3_01_a.exe present per ART-004; Ethereal named as capture tool in ART-002"},
+    {"claim": "Network traffic from a third-party device was captured to a pcap", "status": "CONFIRMED", "rationale": "ART-002 records an intercepted pcap of a Windows CE Pocket PC at a public hotspot in the Mr. Evil profile"},
+    {"claim": "Captured traffic included credential/login service access (passport.com, MSN Hotmail)", "status": "CONFIRMED", "rationale": "Sites accessed listed in ART-002 are Microsoft Passport/Hotmail login endpoints"},
+    {"claim": "The operator used an adversarial alias and frequented hacking/warez IRC channels", "status": "CONFIRMED", "rationale": "DefaultUserName Mr. Evil (ART-001) and #Elite.Hackers/#ISO-WAREZ channels (ART-003)"},
+    {"claim": "The intent was to intercept traffic and steal credentials of non-consenting victims via war driving", "status": "INFERRED", "rationale": "Combination of war-driving tool, sniffer, third-party pcap capturing login traffic, and adversarial aliasing supports credential-theft intent beyond benign testing"},
+    {"claim": "Installers were sent to the Recycle Bin to obscure activity", "status": "INFERRED", "rationale": "Tool installers found deleted-but-recoverable in Recycle Bin (ART-004)"}
+  ],
+  "null_hypothesis_considered": "A legitimate security researcher, network admin, or hobbyist could own NetStumbler/Ethereal/WinPcap for authorized site surveys and self-diagnostics. Ruled out: the captured pcap contains a non-consenting third party's MSN/Hotmail login traffic intercepted at a public hotspot, stored under a 'Mr. Evil' profile alongside hacker/warez IRC activity and deleted tool installers, which is inconsistent with authorized or self-directed testing.",
+  "verdict_rationale": "Co-located war-driving and sniffing tools plus an intercepted pcap of a third party's login-service traffic at a public hotspot, under an adversarial alias, confirm malicious credential-interception intent."
+}

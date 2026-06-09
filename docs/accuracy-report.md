@@ -80,3 +80,167 @@ We also report the **benign-activity exclusions** the agent made on this case (t
 | April–May 2018 cluster = the intrusion | **Abstained / likely baseline** | LOW that it's the intrusion |
 
 The throughline: **report what the evidence supports, label inferences as inferences, abstain when a claim can't be corroborated, and correct earlier errors in the open.**
+
+---
+
+## 6. Benchmark: vigia-cases (verdict reasoning over curated artifacts)
+
+This section reports a **separate, complementary** evaluation against an external,
+community-standard dataset: **`vigia-cases`** by Anna Tchijova, the DFIR benchmark
+the hackathon organiser pointed teams at as a scoring template. It measures the
+agent's **forensic-intent adjudication** — given a curated artifact list, emit a
+verdict (`MALICE` / `SUSPICION` / `BENIGN` / `ABSTAIN`), confidence, MITRE ATT&CK
+TTPs, and IOCs — scored against the dataset's canonical `ground_truth.json` using
+the metrics and thresholds in its `SCORING_GUIDE.md`.
+
+### Scope — what this does and does not measure
+
+This benchmark exercises **verdict reasoning over Anna's hand-curated artifact
+descriptors** (small self-contained JSON). It does **not** use our Neo4j
+correlation graph or the `forensics-graph` MCP server at all, and it is **not** a
+measure of cross-host / raw-scale evidence correlation — that capability is the
+subject of §§1–5 above and the `architecture.md` / `protocol-sift-integration.md`
+docs. The two are evaluations of **different layers** of the same pipeline
+(*correlation over raw evidence* vs. *intent adjudication over curated findings*);
+**neither validates the other**, and we do not claim it does.
+
+### Methodology — isolation and reproducibility
+
+The dataset stores each case's answer (`ground_truth.json`) in the same directory
+as the agent input (`case.json`). The benchmark is only meaningful if the agent
+never sees the answer, so:
+
+- **Input isolation.** Only the four `case.json` files were copied into an
+  eval-only working tree (`~/vigia-eval/inputs/`, outside this repo). The check
+  `find ~/vigia-eval/inputs -name 'ground_truth*' -o -name 'manifest*' -o -name
+  'index*'` returns **nothing** — no answer file exists anywhere the agent can reach.
+- **Fresh, blind context per case.** Each verdict was produced by an independent
+  agent context pointed at **exactly one** `case.json` and forbidden from reading
+  any other file (no ground truth; no cross-case contamination).
+- **Deterministic, committed scorer.** `tools/vigia_score.py` (unit tests in
+  `tests/test_vigia_score.py`, 10 passing) reads ground truth **only** at scoring
+  time and emits the report JSON. Same inputs → byte-identical report.
+- **Archived outputs.** The raw per-case verdicts and the full report JSON are in
+  [`docs/benchmark/`](benchmark/). We do **not** vendor any `vigia-cases` content
+  (it is Anna's separately-licensed dataset — see Attribution); only our own
+  verdicts and scorer are committed.
+
+### (a) Headline accuracy — `score_against` tier (VIGIA-REAL-001 / 002 / 007)
+
+Only the `score_against` tier is valid for accuracy claims (per `SCORING_GUIDE.md`).
+All three carry ground-truth verdict **MALICE**.
+
+| Case | Incident | Our verdict | Truth | ✓ | Conf | TTP (exact) | TTP (family) | IOC recall |
+|---|---|---|---|---|---|---|---|---|
+| VIGIA-REAL-001 | NIST Hacking Case (war-driving / credential theft) | MALICE | MALICE | ✅ | 0.95 | 1/6 (16.7%) | 1/6 (16.7%) | 4/10 |
+| VIGIA-REAL-002 | NIST Data Leakage (insider exfiltration) | MALICE | MALICE | ✅ | 0.95 | 1/5 (20.0%) | 3/5 (60.0%) | 5/5 |
+| VIGIA-REAL-007 | Nitroba harassment (network attribution) | MALICE | MALICE | ✅ | 0.93 | 0/3 (0.0%) | 2/3 (66.7%) | 3/3 |
+
+Report-JSON summary (full file: [`docs/benchmark/vigia-report.json`](benchmark/vigia-report.json)):
+
+```json
+{
+  "tier": "score_against",
+  "cases_evaluated": 3,
+  "summary": {
+    "verdict_accuracy": 1.0,
+    "fpr": 0.0,
+    "fnr_mal": 0.0,
+    "ttp_coverage": 0.143,
+    "ttp_coverage_family": 0.429
+  }
+}
+```
+
+| Metric | Result | Threshold | Met? |
+|---|---|---|---|
+| Verdict Accuracy | **100%** (3/3) | ≥ 80% | ✅ |
+| FPR (false-positive rate) | **0%** | ≤ 20% | ✅ |
+| FNR-MAL (MALICE → BENIGN) | **0%** | ≤ 10% | ✅ |
+| TTP Coverage (exact) | **14.3%** (2/14) | ≥ 60% | ❌ |
+| TTP Coverage (family, parent-matched) | 42.9% (6/14) | — (informational) | ❌ |
+
+**The verdicts are correct; the TTP labelling is the honest weak spot — we do not
+paper over it.** Two distinct effects drive the low coverage:
+
+1. **Granularity mismatch.** The agent emitted *parent* techniques where the
+   dataset's canonical set uses *sub-techniques* — e.g. on 007 it produced `T1566`
+   (canonical `T1566.001`) and `T1585.002` (canonical `T1585.001`). Exact matching
+   scores these as misses; *family* matching (parent-technique level) recovers
+   them, which is why 002/007 jump to 60–67% under the lenient view.
+2. **Genuinely different technique selection.** On 001 the agent framed the case
+   around credential interception (`T1557`, `T1539`, `T1592.001`) while the canonical
+   set emphasises discovery/scanning/input-capture/unsecured-credentials (`T1018`,
+   `T1056`, `T1552`, `T1595`). Both are defensible readings of the same artifacts,
+   but they pick different ATT&CK IDs — so even family matching only recovers 1/6.
+
+We report **exact coverage as the headline** because it mirrors `SCORING_GUIDE.md`'s
+own worked example; family coverage is shown for transparency, not to inflate the
+number. The takeaway: the agent's *adjudication* is reliable, its *canonical-TTP
+alignment* is not — and it misses the dataset's ≥60% bar on both views.
+
+IOC recall was 12/18 (66.7%) aggregate. The misses are concentrated in 001, where
+the agent recovered the email/hash/hostname IOCs but not several
+registry/config-path/SID artifacts (`...\mirc.ini`, the Mr. Evil SID, a secondary
+IP/MAC) — consistent with reasoning from the incident narrative rather than
+enumerating every low-level identifier.
+
+### (b) Specificity gate — VIGIA-REAL-005 (reported separately, NOT in the headline)
+
+`VIGIA-REAL-005` ("Encrypt Them All", `build_and_test` tier) is the dataset's
+**intentional false-positive gate**. Its ground truth is **SUSPICION**, not MALICE:
+multiple encryption layers can be legitimate personal security. Per the guide, an
+agent **passes only by emitting SUSPICION** (or abstaining appropriately) and
+**fails automatically by over-calling MALICE** — no partial credit. It is reported
+here in isolation and is **never folded into the headline accuracy number**.
+
+| Case | Our verdict | Truth | Result | Over-called MALICE? | Conf |
+|---|---|---|---|---|---|
+| VIGIA-REAL-005 | **SUSPICION** | SUSPICION | ✅ **PASS** | No | 0.60 |
+
+The agent saw the concealment signals (AES + BitLocker + GPG layering, a BitLocker
+volume named "R2D2") and explicitly weighed the **null hypothesis** — *"a
+privacy- and security-conscious user employing entirely standard, lawful encryption
+tools"* — then **declined to escalate to MALICE** because no artifact revealed the
+encrypted content, a counterparty, malware, or any unauthorized act. It marked the
+"communication with an external party" and "content is illicit" claims **INFERRED,
+not CONFIRMED**.
+
+**This is the same discipline as the SAM-theft call in §1.** There, the agent
+reported the credential-theft *attempt* at HIGH confidence but **abstained on the
+success claim** for want of corroboration ("ATTEMPTED, not confirmed"). Here, it
+reports *suspicion* of concealment but **declines the malice claim** for want of
+content, counterparty, or victim. In both cases the agent refuses to convert an
+anomaly into a confirmed accusation — which is exactly the reliability behaviour
+(abstain/under-claim when uncertain) that the dataset's gate, and DFIR-Metric,
+reward over a confident wrong answer.
+
+### Training-data caveat (stated plainly, per the organiser's instruction)
+
+These are **published** forensic cases. The two NIST cases especially —
+**VIGIA-REAL-001** (NIST Hacking Case) and **VIGIA-REAL-002** (NIST Data Leakage) —
+are among the most heavily documented DFIR exercises on the public internet, with
+full walkthroughs and answer keys widely mirrored; VIGIA-REAL-007 (Nitroba) and
+VIGIA-REAL-005 (Ali Hadi "Encrypt Them All") are likewise public challenges. A
+language model may therefore **recall** the documented answer rather than **reason**
+to it from the artifacts, and **we cannot distinguish the two from the output**. We
+state this rather than present the score as evidence of pure reasoning.
+
+The **same caveat applies to our own SRL-2018 work**: SRL-2018 / SHIELDBASE is the
+SANS **FOR508** scenario, which is also documented online. Wherever this report
+cites SRL-2018 results, the recall-vs-reason caveat holds there too.
+
+### Attribution
+
+This benchmark uses the **`vigia-cases`** dataset by **Anna Tchijova**, used under
+its **Apache-2.0** license. Cloned commit **`5453805`**.
+
+```
+Tchijova, A. (2026). vigia-cases: DFIR Benchmark Dataset for Forensic Intent
+Analysis. SANS FIND EVIL Hackathon 2026. https://github.com/annatchijova/vigia-cases
+```
+
+*Integrity note (returned upstream as friendly feedback):* `sha256sum --check
+hashes.sha256` on the cloned dataset verifies **all** case and ground-truth files;
+only `README.md` mismatches — a stale hash after a post-generation edit to the
+file. Benign, but worth flagging to the author for an integrity-focused benchmark.

@@ -1,0 +1,243 @@
+{
+  "agent_id": "neo-finds-evil (Claude Opus 4.8, blind case.json)",
+  "evaluation_date": "2026-06-09",
+  "dataset": {
+    "name": "vigia-cases",
+    "repo": "https://github.com/annatchijova/vigia-cases",
+    "commit": "5453805",
+    "license": "Apache-2.0",
+    "citation": "Tchijova, A. (2026). vigia-cases: DFIR Benchmark Dataset for Forensic Intent Analysis. SANS FIND EVIL Hackathon 2026."
+  },
+  "tier": "score_against",
+  "cases_evaluated": 3,
+  "results": [
+    {
+      "case_id": "VIGIA-REAL-001",
+      "agent_verdict": "MALICE",
+      "expected_verdict": "MALICE",
+      "agent_confidence": 0.95,
+      "correct": true,
+      "mitre_ttps_detected": [
+        "T1040",
+        "T1070.004",
+        "T1539",
+        "T1557",
+        "T1588.002",
+        "T1592.001"
+      ],
+      "mitre_ttps_expected": [
+        "T1018",
+        "T1040",
+        "T1056",
+        "T1552",
+        "T1595",
+        "T1595.001"
+      ],
+      "ttp_exact_coverage": 0.16666666666666666,
+      "ttp_family_coverage": 0.16666666666666666,
+      "ioc_recall": {
+        "n_canonical": 10,
+        "n_recovered": 4,
+        "recall": 0.4,
+        "recovered": [
+          "mrevilrulez@yahoo.com",
+          "whoknowsme@sbcglobal.net",
+          "aee4fcd9301c03b3b054623ca261959a",
+          "N-1A9ODN6ZXK4LQ"
+        ],
+        "missing": [
+          "C:\\Program Files\\Look@LAN\\irunin.ini",
+          "C:\\Program Files\\mIRC\\mirc.ini",
+          "192.168.1.111",
+          "00:10:a4:93:3e:09",
+          "mrevil2000",
+          "S-1-5-21-2000478354-688789844-1708537768-1003"
+        ]
+      }
+    },
+    {
+      "case_id": "VIGIA-REAL-002",
+      "agent_verdict": "MALICE",
+      "expected_verdict": "MALICE",
+      "agent_confidence": 0.95,
+      "correct": true,
+      "mitre_ttps_detected": [
+        "T1027.013",
+        "T1039",
+        "T1048",
+        "T1052.001",
+        "T1070.004",
+        "T1074.001",
+        "T1485",
+        "T1530",
+        "T1567.002"
+      ],
+      "mitre_ttps_expected": [
+        "T1048",
+        "T1070",
+        "T1078",
+        "T1564",
+        "T1567"
+      ],
+      "ttp_exact_coverage": 0.2,
+      "ttp_family_coverage": 0.6,
+      "ioc_recall": {
+        "n_canonical": 5,
+        "n_recovered": 5,
+        "recall": 1.0,
+        "recovered": [
+          "iaman.informant.personal@gmail.com",
+          "iaman.informant@nist.gov",
+          "spy.conspirator@nist.gov",
+          "10.11.11.128",
+          "10.11.11.129"
+        ],
+        "missing": []
+      }
+    },
+    {
+      "case_id": "VIGIA-REAL-007",
+      "agent_verdict": "MALICE",
+      "expected_verdict": "MALICE",
+      "agent_confidence": 0.93,
+      "correct": true,
+      "mitre_ttps_detected": [
+        "T1566",
+        "T1583.006",
+        "T1585.002"
+      ],
+      "mitre_ttps_expected": [
+        "T1071.001",
+        "T1566.001",
+        "T1585.001"
+      ],
+      "ttp_exact_coverage": 0.0,
+      "ttp_family_coverage": 0.6666666666666666,
+      "ioc_recall": {
+        "n_canonical": 3,
+        "n_recovered": 3,
+        "recall": 1.0,
+        "recovered": [
+          "jcoachj@gmail.com",
+          "140.247.62.34",
+          "192.168.15.4"
+        ],
+        "missing": []
+      }
+    }
+  ],
+  "summary": {
+    "verdict_accuracy": 1.0,
+    "fpr": 0.0,
+    "fnr_mal": 0.0,
+    "ttp_coverage": 0.14285714285714285,
+    "ttp_coverage_family": 0.42857142857142855,
+    "_fpr_basis": "Computed over BENIGN/SUSPICION-truth cases across the whole evaluation: ['VIGIA-REAL-005']. No FP-eligible cases exist within the score_against tier itself."
+  },
+  "specificity_gate": [
+    {
+      "case_id": "VIGIA-REAL-005",
+      "agent_verdict": "SUSPICION",
+      "expected_verdict": "SUSPICION",
+      "exact_match": true,
+      "passed": true,
+      "over_called_malice": false,
+      "agent_confidence": 0.6,
+      "mitre_ttps_detected": [
+        "T1027",
+        "T1486"
+      ],
+      "mitre_ttps_expected": [
+        "T1027",
+        "T1486",
+        "T1564",
+        "T1565"
+      ],
+      "ttp_exact_coverage": 0.5,
+      "ttp_family_coverage": 0.5
+    }
+  ],
+  "false_positive_basis": {
+    "eligible_cases": [
+      "VIGIA-REAL-005"
+    ],
+    "false_positives": [],
+    "fpr": 0.0
+  },
+  "secondary_metrics": {
+    "peirce_alignment": null,
+    "peirce_note": "Not deterministically scorable: the agent's verdict schema did not re-emit a Firstness/Secondness/Thirdness classification, and ground truth stores Peirce layers as free-text narratives. case.json tags each artifact with a peirce_layer, but no machine-checkable agent classification was produced to compare against.",
+    "ioc_recall": {
+      "aggregate_recall": 0.6666666666666666,
+      "n_canonical": 18,
+      "n_recovered": 12,
+      "per_case": {
+        "VIGIA-REAL-001": {
+          "n_canonical": 10,
+          "n_recovered": 4,
+          "recall": 0.4,
+          "recovered": [
+            "mrevilrulez@yahoo.com",
+            "whoknowsme@sbcglobal.net",
+            "aee4fcd9301c03b3b054623ca261959a",
+            "N-1A9ODN6ZXK4LQ"
+          ],
+          "missing": [
+            "C:\\Program Files\\Look@LAN\\irunin.ini",
+            "C:\\Program Files\\mIRC\\mirc.ini",
+            "192.168.1.111",
+            "00:10:a4:93:3e:09",
+            "mrevil2000",
+            "S-1-5-21-2000478354-688789844-1708537768-1003"
+          ]
+        },
+        "VIGIA-REAL-002": {
+          "n_canonical": 5,
+          "n_recovered": 5,
+          "recall": 1.0,
+          "recovered": [
+            "iaman.informant.personal@gmail.com",
+            "iaman.informant@nist.gov",
+            "spy.conspirator@nist.gov",
+            "10.11.11.128",
+            "10.11.11.129"
+          ],
+          "missing": []
+        },
+        "VIGIA-REAL-007": {
+          "n_canonical": 3,
+          "n_recovered": 3,
+          "recall": 1.0,
+          "recovered": [
+            "jcoachj@gmail.com",
+            "140.247.62.34",
+            "192.168.15.4"
+          ],
+          "missing": []
+        },
+        "VIGIA-REAL-005": {
+          "n_canonical": 0,
+          "n_recovered": 0,
+          "recall": null,
+          "recovered": [],
+          "missing": []
+        }
+      }
+    },
+    "abstention_rate": 0.0,
+    "abstentions": [],
+    "abstention_note": "No evaluated case has an abstain-expected ground truth, so a correct abstention was never available; this rate is reported for completeness."
+  },
+  "thresholds": {
+    "verdict_accuracy": 0.8,
+    "fpr": 0.2,
+    "fnr_mal": 0.1,
+    "ttp_coverage": 0.6
+  },
+  "thresholds_met": {
+    "verdict_accuracy": true,
+    "fpr": true,
+    "fnr_mal": true,
+    "ttp_coverage": false
+  }
+}

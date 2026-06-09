@@ -1,0 +1,38 @@
+{
+  "case_id": "VIGIA-REAL-002",
+  "verdict": "MALICE",
+  "confidence": 0.95,
+  "mitre_ttps": [
+    "T1530",
+    "T1039",
+    "T1074.001",
+    "T1027.013",
+    "T1567.002",
+    "T1048",
+    "T1052.001",
+    "T1070.004",
+    "T1485"
+  ],
+  "key_iocs": [
+    "spy.conspirator@nist.gov (external solicitor)",
+    "iaman.informant@nist.gov (compromised insider account)",
+    "iaman.informant.personal@gmail.com (personal exfil Google Drive account)",
+    "network drive \\\\10.11.11.128\\secured_drive",
+    "host IP 10.11.11.129 (informant workstation)",
+    "[secret_project]_pricing_decision.docx renamed to .mp3",
+    "[secret_project]_final_meeting.pptx renamed to .jpg",
+    "Desktop\\$ data staging directory",
+    "CCleaner (anti-forensic tool)",
+    "Eraser (anti-forensic tool)"
+  ],
+  "claims": [
+    {"claim": "An external party solicited confidential data from the insider", "status": "CONFIRMED", "rationale": "ART-002 emails from spy.conspirator@nist.gov explicitly request 'more data' and 'the remaining data'"},
+    {"claim": "Confidential corporate files were collected from a secured network drive and staged locally", "status": "CONFIRMED", "rationale": "ART-005 shows connection to \\\\10.11.11.128\\secured_drive, file copy to Desktop\\$ data, then disconnect"},
+    {"claim": "File extensions were deliberately altered to conceal content", "status": "CONFIRMED", "rationale": "ART-003 shows .docx->.mp3 and .pptx->.jpg renames of files classified confidential"},
+    {"claim": "Data was exfiltrated via personal Google Drive/Gmail", "status": "CONFIRMED", "rationale": "ART-004 shows Google Drive login with personal Gmail, files uploaded and shared, 'Login is below.' email"},
+    {"claim": "Anti-forensic tools were installed to destroy evidence after exfiltration", "status": "CONFIRMED", "rationale": "ART-004 notes CCleaner and Eraser installed after the upload"},
+    {"claim": "Activity occurred during/around off-policy hours", "status": "INFERRED", "rationale": "ART-001 logon/rename timestamps at the 16:00 policy boundary; consistent with concealment but secondary"}
+  ],
+  "null_hypothesis_considered": "An employee legitimately accessing project files and using personal cloud storage for convenient backup, with CCleaner/Eraser run merely for routine disk cleanup.",
+  "verdict_rationale": "Coordinated chain - external solicitation, selective collection of confidential files from a secured drive, extension masquerading, exfil to a personal cloud account, and post-act anti-forensic wiping - rules out the benign convenience explanation and confirms deliberate malicious insider exfiltration."
+}

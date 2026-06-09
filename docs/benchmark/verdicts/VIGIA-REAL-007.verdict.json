@@ -1,0 +1,24 @@
+{
+  "case_id": "VIGIA-REAL-007",
+  "verdict": "MALICE",
+  "confidence": 0.93,
+  "mitre_ttps": ["T1585.002", "T1566", "T1583.006"],
+  "key_iocs": [
+    "willselfdestruct.com (anonymous self-destructing email service)",
+    "badguy@hotmail.com",
+    "jcoachj@gmail.com (attributed to Johnny Coach, Chem 109 student)",
+    "Internal NAT IP 192.168.15.4",
+    "External dormitory IP 140.247.62.34",
+    "MAC 00:17:f2:e2:c0:ce (Apple Mac OS X 10.5.4 device)",
+    "Threat text: 'you can't find us and you can't hide from us. Stop teaching. Start running.'"
+  ],
+  "claims": [
+    {"claim": "An explicit threatening/harassing message was sent to the victim", "status": "CONFIRMED", "rationale": "Artifact content quotes the verbatim threat 'Stop teaching. Start running.'"},
+    {"claim": "An anonymizing self-destructing email service was used to send the harassment", "status": "CONFIRMED", "rationale": "ART-001/002 cite willselfdestruct.com used to send anonymous threat email"},
+    {"claim": "The sending machine was attributed to a Gmail account via plaintext HTTP cookies in the pcap", "status": "CONFIRMED", "rationale": "ART-002 states jcoachj@gmail.com identified via plaintext cookies"},
+    {"claim": "The Gmail account belongs to Johnny Coach, a Chemistry 109 student of the victim", "status": "INFERRED", "rationale": "Attribution links account to a named student/roster, but pcap establishes the device not the human typing"},
+    {"claim": "The harassment originated from inside the dormitory network behind NAT", "status": "CONFIRMED", "rationale": "Internal NAT IP 192.168.15.4 and dormitory external IP captured in flow"}
+  ],
+  "null_hypothesis_considered": "The open password-less WiFi plus shared university Ethernet means an outsider or roommate could have used the connection/account, so the captured device may not identify the actual harasser; alternatively the messages could be a non-malicious prank.",
+  "verdict_rationale": "Verbatim threatening messages sent via an anonymizing self-destruct service rule out any benign explanation; the intent is unambiguously malicious harassment even though individual human attribution is only inferred."
+}
