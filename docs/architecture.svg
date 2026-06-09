@@ -1,0 +1,137 @@
+<svg width="1680" height="1150" viewBox="0 0 1680 1150" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="dotgrid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1" fill="#d8d2c4"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3b3f4a"/>
+    </marker>
+    <marker id="arrowTeal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#0f4c5c"/>
+    </marker>
+    <marker id="arrowDash" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8a8170"/>
+    </marker>
+  </defs>
+
+  <!-- background -->
+  <rect width="1680" height="1150" fill="#f7f4ec"/>
+  <rect width="1680" height="1150" fill="url(#dotgrid)"/>
+
+  <!-- header -->
+  <text x="90" y="64" font-family="DejaVu Sans Mono" font-size="34" font-weight="bold" fill="#1f2430">neo-finds-evil &#8212; system architecture</text>
+  <text x="90" y="94" font-family="DejaVu Sans" font-size="16" fill="#4b5160">Extending Protocol SIFT with an architecturally read-only graph-correlation layer &#8226; SANS FIND EVIL! 2026</text>
+  <line x1="90" y1="112" x2="1590" y2="112" stroke="#1f2430" stroke-width="2"/>
+
+  <!-- legend (top right) -->
+  <g>
+    <rect x="1180" y="128" width="410" height="96" rx="6" fill="#ffffff" stroke="#c9c2b2" stroke-width="1"/>
+    <text x="1198" y="152" font-family="DejaVu Sans" font-size="12" font-weight="bold" fill="#1f2430">SECURITY BOUNDARY LEGEND</text>
+    <rect x="1198" y="164" width="34" height="14" fill="none" stroke="#0f4c5c" stroke-width="3"/>
+    <text x="1242" y="176" font-family="DejaVu Sans" font-size="12" fill="#1f2430">architectural &#8212; enforced by what exists</text>
+    <rect x="1198" y="190" width="34" height="14" fill="none" stroke="#6b7280" stroke-width="2" stroke-dasharray="5,4"/>
+    <text x="1242" y="202" font-family="DejaVu Sans" font-size="12" fill="#1f2430">prompt / config &#8212; enforced by rules &amp; allowlists</text>
+  </g>
+
+  <!-- agent box -->
+  <g>
+    <rect x="430" y="140" width="700" height="118" rx="8" fill="#ffffff" stroke="#6b7280" stroke-width="2" stroke-dasharray="6,5"/>
+    <text x="780" y="174" font-family="DejaVu Sans Mono" font-size="20" font-weight="bold" fill="#1f2430" text-anchor="middle">CLAUDE CODE AGENT</text>
+    <text x="780" y="200" font-family="DejaVu Sans" font-size="13.5" fill="#3b3f4a" text-anchor="middle">governed by Protocol SIFT&#8217;s global CLAUDE.md (DFIR rules, self-correction directive)</text>
+    <text x="780" y="220" font-family="DejaVu Sans" font-size="13.5" fill="#3b3f4a" text-anchor="middle">+ settings.json permission policy (allow / deny, scoped write paths)</text>
+    <rect x="612" y="232" width="336" height="20" rx="10" fill="#eceef2"/>
+    <text x="780" y="246" font-family="DejaVu Sans" font-size="11.5" fill="#4b5160" text-anchor="middle" font-weight="bold">prompt / config guardrails (upstream)</text>
+  </g>
+
+  <!-- arrows agent -> two tool layers -->
+  <path d="M 600 258 L 440 332" stroke="#3b3f4a" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="455" y="288" font-family="DejaVu Sans" font-size="12" fill="#4b5160">Bash tool calls</text>
+  <text x="455" y="304" font-family="DejaVu Sans" font-size="12" fill="#4b5160">(allowlisted CLIs + Skills)</text>
+
+  <path d="M 960 258 L 1120 332" stroke="#0f4c5c" stroke-width="2.5" fill="none" marker-end="url(#arrowTeal)"/>
+  <text x="1085" y="280" font-family="DejaVu Sans Mono" font-size="12" font-weight="bold" fill="#0f4c5c">MCP (stdio)</text>
+  <text x="1085" y="296" font-family="DejaVu Sans" font-size="12" fill="#0f4c5c">project-scoped .mcp.json</text>
+
+  <!-- Protocol SIFT layer (left) -->
+  <g>
+    <rect x="90" y="340" width="700" height="266" rx="8" fill="#ffffff" stroke="#6b7280" stroke-width="2" stroke-dasharray="6,5"/>
+    <text x="114" y="374" font-family="DejaVu Sans Mono" font-size="18" font-weight="bold" fill="#1f2430">PROTOCOL SIFT TOOL LAYER</text>
+    <text x="114" y="396" font-family="DejaVu Sans" font-size="13" fill="#6b7280" font-style="italic">upstream &#8212; by Rob Lee / SANS teamdfir</text>
+
+    <text x="114" y="430" font-family="DejaVu Sans" font-size="13.5" fill="#3b3f4a">Bash allowlist of ~80 vetted forensic CLIs + 5 Skills:</text>
+    <text x="114" y="456" font-family="DejaVu Sans Mono" font-size="13" fill="#1f2430">Volatility 3 &#183; Plaso &#183; Sleuth Kit &#183; EZ Tools &#183; YARA</text>
+
+    <text x="114" y="490" font-family="DejaVu Sans" font-size="13.5" fill="#3b3f4a">Depth: one artifact, one host, one tool at a time.</text>
+    <text x="114" y="510" font-family="DejaVu Sans" font-size="13.5" font-weight="bold" fill="#9a3412">No memory across hosts or time &#8212; the correlation gap.</text>
+
+    <rect x="114" y="534" width="380" height="22" rx="11" fill="#eceef2"/>
+    <text x="304" y="549" font-family="DejaVu Sans" font-size="11.5" fill="#4b5160" text-anchor="middle" font-weight="bold">boundary: config allow / deny list (prompt-level)</text>
+    <text x="114" y="588" font-family="DejaVu Sans" font-size="12.5" fill="#6b7280">audit: Stop-hook appends session log (forensic_audit.log)</text>
+  </g>
+
+  <!-- forensics-graph MCP server (right, THE contribution) -->
+  <g>
+    <rect x="890" y="340" width="700" height="266" rx="8" fill="#e7f1f2" stroke="#0f4c5c" stroke-width="3.5"/>
+    <rect x="890" y="340" width="700" height="46" rx="8" fill="#0f4c5c"/>
+    <text x="914" y="370" font-family="DejaVu Sans Mono" font-size="18" font-weight="bold" fill="#ffffff">forensics-graph MCP SERVER</text>
+    <text x="1566" y="370" font-family="DejaVu Sans" font-size="12.5" font-weight="bold" fill="#ffd166" text-anchor="end">THIS PROJECT &#8212; the only MCP server</text>
+
+    <text x="914" y="416" font-family="DejaVu Sans" font-size="13" font-weight="bold" fill="#0f4c5c">FIVE READ-ONLY TOOLS</text>
+    <text x="914" y="440" font-family="DejaVu Sans Mono" font-size="13" fill="#1f2430">list_hunts &#183; run_hunt &#183; get_host_summary</text>
+    <text x="914" y="460" font-family="DejaVu Sans Mono" font-size="13" fill="#1f2430">get_event (traceability) &#183; query_graph (guarded)</text>
+
+    <text x="914" y="492" font-family="DejaVu Sans" font-size="13" font-weight="bold" fill="#0f4c5c">ARCHITECTURAL GUARDRAILS</text>
+    <text x="914" y="514" font-family="DejaVu Sans" font-size="13" fill="#1f2430">&#8226; no write tool exists &#8226; Neo4j READ transaction (server-enforced)</text>
+    <text x="914" y="534" font-family="DejaVu Sans" font-size="13" fill="#1f2430">&#8226; lexical write-reject (21-case bypass battery) &#8226; LIMIT + timeout</text>
+    <text x="914" y="554" font-family="DejaVu Sans" font-size="13" fill="#1f2430">&#8226; JSON audit line per tool call &#8594; mcp-audit.log</text>
+
+    <rect x="914" y="570" width="270" height="22" rx="11" fill="#0f4c5c"/>
+    <text x="1049" y="585" font-family="DejaVu Sans" font-size="11.5" fill="#ffffff" text-anchor="middle" font-weight="bold">boundary: ARCHITECTURAL read-only</text>
+  </g>
+
+  <!-- arrows to data layer -->
+  <path d="M 440 606 L 440 668" stroke="#3b3f4a" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="455" y="644" font-family="DejaVu Sans" font-size="12" fill="#4b5160">reads artifacts directly</text>
+
+  <path d="M 1240 606 L 1240 668" stroke="#0f4c5c" stroke-width="2.5" fill="none" marker-end="url(#arrowTeal)"/>
+  <text x="1255" y="644" font-family="DejaVu Sans" font-size="12" fill="#0f4c5c">bolt://localhost:7687 &#183; READ session</text>
+
+  <!-- Evidence (left) -->
+  <g>
+    <rect x="90" y="676" width="700" height="140" rx="8" fill="#fdf3e3" stroke="#b45309" stroke-width="2"/>
+    <text x="114" y="708" font-family="DejaVu Sans Mono" font-size="17" font-weight="bold" fill="#7c3a07">EVIDENCE SOURCES &#8212; read-only mounts</text>
+    <text x="114" y="738" font-family="DejaVu Sans" font-size="13.5" fill="#3b3f4a">7 disk images &#183; 6 memory captures &#183; EVTX / registry / prefetch / shimcache</text>
+    <text x="114" y="762" font-family="DejaVu Sans" font-size="13.5" fill="#3b3f4a">SRL-2018 / SHIELDBASE.LAN &#8212; the SANS FOR508 enterprise-intrusion scenario</text>
+    <text x="114" y="794" font-family="DejaVu Sans" font-size="12.5" fill="#6b7280" font-style="italic">chain of custody: evidence is never modified by any layer above</text>
+  </g>
+
+  <!-- Neo4j graph (right) -->
+  <g>
+    <rect x="890" y="676" width="700" height="140" rx="8" fill="#ffffff" stroke="#0f4c5c" stroke-width="2.5"/>
+    <text x="914" y="708" font-family="DejaVu Sans Mono" font-size="17" font-weight="bold" fill="#0f4c5c">NEO4J FORENSIC GRAPH</text>
+    <text x="914" y="738" font-family="DejaVu Sans" font-size="13.5" fill="#1f2430">359,788 nodes &#183; ~1.9M relationships &#183; 7 hosts, full timeline</text>
+    <text x="914" y="762" font-family="DejaVu Sans Mono" font-size="12.5" fill="#3b3f4a">SPAWNED &#183; CONNECTED_TO &#183; LOGGED_IN &#183; MODIFIED &#183; CREATED_FILE &#8230;</text>
+    <text x="914" y="794" font-family="DejaVu Sans" font-size="12.5" fill="#6b7280" font-style="italic">Docker container, localhost-only &#183; restorable from release backup in ~60s</text>
+  </g>
+
+  <!-- ingest pipeline (offline, dashed) -->
+  <path d="M 440 816 L 440 884 L 560 884" stroke="#8a8170" stroke-width="2" fill="none" stroke-dasharray="7,5"/>
+  <path d="M 1120 884 L 1240 884 L 1240 816" stroke="#8a8170" stroke-width="2" fill="none" stroke-dasharray="7,5" marker-end="url(#arrowDash)"/>
+  <g>
+    <rect x="560" y="848" width="560" height="72" rx="8" fill="#f1ede2" stroke="#8a8170" stroke-width="1.5" stroke-dasharray="7,5"/>
+    <text x="840" y="876" font-family="DejaVu Sans" font-size="13.5" font-weight="bold" fill="#5b5444" text-anchor="middle">INGEST PIPELINE &#8212; out-of-band, never agent-exposed</text>
+    <text x="840" y="900" font-family="DejaVu Sans" font-size="12.5" fill="#5b5444" text-anchor="middle">Plaso / Volatility psscan &#8594; JSONL &#8594; loaders + dedup + relationship projections</text>
+  </g>
+
+  <!-- outputs strip -->
+  <g>
+    <rect x="90" y="960" width="1500" height="92" rx="8" fill="#1f2430"/>
+    <text x="114" y="996" font-family="DejaVu Sans Mono" font-size="16" font-weight="bold" fill="#ffffff">OUTPUTS</text>
+    <text x="114" y="1026" font-family="DejaVu Sans" font-size="13.5" fill="#e6e2d8">structured investigative narrative &#183; every finding traceable: hunt row &#8594; event_id &#8594; get_event &#8594; source .evtx &#183; audit trail: mcp-audit.log (one JSON line per tool call, timestamped)</text>
+  </g>
+  <path d="M 780 920 L 780 958" stroke="#3b3f4a" stroke-width="0" fill="none"/>
+  <path d="M 440 816 L 240 958" stroke="#3b3f4a" stroke-width="0" fill="none"/>
+
+  <!-- footer -->
+  <text x="90" y="1098" font-family="DejaVu Sans" font-size="11.5" fill="#8a8170">neo-finds-evil &#8226; Apache-2.0 &#8226; extends Protocol SIFT (Rob Lee / SANS teamdfir) &#8226; FIND EVIL! hackathon submission &#8226; June 2026</text>
+</svg>
