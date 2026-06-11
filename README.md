@@ -97,10 +97,13 @@ uv sync                      # installs deps incl. the `mcp` SDK and the neo4j d
 The graph is published as a release asset (it is far too large, and is evidence, to live in git):
 
 ```bash
-# Download the release asset:  graph-srl2018.tar.gz
-# It contains a pre-ingested Neo4j /data directory for the SRL-2018 case.
-
+# Download the release asset (pre-ingested Neo4j /data directory for the SRL-2018 case):
 mkdir -p ~/neo4j-data
+wget https://github.com/NikVir/neo-finds-evil/releases/download/v1.0/graph-srl2018.tar.gz
+# Verify integrity before trusting the file:
+echo "dfbd512945d53845449932a76be543150bf9ac3f08dee9a8cfaa390ddc51ebb8  graph-srl2018.tar.gz" | sha256sum -c
+# Expect: graph-srl2018.tar.gz: OK
+
 tar -xzf graph-srl2018.tar.gz -C ~/neo4j-data       # → ~/neo4j-data/for508 (databases + transactions)
 
 # Start Neo4j 5.x Community over that data directory (matches the .mcp.json bolt/creds):
