@@ -256,7 +256,10 @@ def impl_run_hunt(client: Neo4jClient, name: str, limit: int = DEFAULT_LIMIT) ->
     cap = _clamp_limit(limit)
     params = load_exclusion_params(name) if name in EXCLUSION_PARAM_HUNTS else None
     try:
-        rows = client.read_query(QUERIES[name], params, timeout=stats_query_timeout())
+        # max_rows=cap+1 bounds cursor consumption (cap+1 so truncation is detectable)
+        rows = client.read_query(
+            QUERIES[name], params, timeout=stats_query_timeout(), max_rows=cap + 1
+        )
     except Exception as exc:  # noqa: BLE001
         if _is_timeout(exc):
             return _err("timeout", "hunt exceeded the server-side time limit; narrow it")
@@ -369,7 +372,13 @@ def impl_query_graph(
     cap = _clamp_limit(limit_enforced)
     effective, appended = enforce_limit(cypher, cap)
     try:
-        rows = client.read_query(effective, params or {}, timeout=stats_query_timeout())
+        # max_rows=cap+1 bounds cursor *consumption*: a user-supplied huge LIMIT
+        # (which enforce_limit leaves untouched) can no longer force the full
+        # result to materialize here before the cap is applied. cap+1 keeps
+        # truncation detectable.
+        rows = client.read_query(
+            effective, params or {}, timeout=stats_query_timeout(), max_rows=cap + 1
+        )
     except Exception as exc:  # noqa: BLE001
         if _is_timeout(exc):
             return _err(

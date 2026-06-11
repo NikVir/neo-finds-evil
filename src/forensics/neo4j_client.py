@@ -161,13 +161,21 @@ class Neo4jClient:
         parameters: dict[str, Any] | None = None,
         *,
         timeout: float | None = None,
+        max_rows: int | None = None,
     ) -> list[dict[str, Any]]:
         """Run a query in an explicit READ transaction with a server-side timeout.
 
         Driver-level read-only guarantee: the session is opened in READ access
         mode, so any write clause is rejected by the server (raises ClientError)
-        regardless of the text. The transaction is never committed (read-only).
-        Used by the read-only MCP server's escape-hatch tool.
+        regardless of the text. The access mode IS the enforced boundary — do
+        not weaken it; the live regression test in tests/test_mcp_server.py
+        (test_live_read_access_backstop_rejects_real_write) fails if it is
+        removed. Used by the read-only MCP server's escape-hatch tool.
+
+        ``max_rows`` bounds *consumption*, not just the returned list: the
+        cursor is read lazily and abandoned after ``max_rows`` records, so a
+        query carrying a huge user-supplied LIMIT cannot force this process to
+        materialize the full result before the caller's cap is applied.
         """
         with (
             self._driver.session(
@@ -175,7 +183,15 @@ class Neo4jClient:
             ) as session,
             session.begin_transaction(timeout=timeout) as tx,
         ):
-            return [dict(rec) for rec in tx.run(cypher, parameters or {})]
+            result = tx.run(cypher, parameters or {})
+            if max_rows is None:
+                return [dict(rec) for rec in result]
+            rows: list[dict[str, Any]] = []
+            for rec in result:
+                rows.append(dict(rec))
+                if len(rows) >= max_rows:
+                    break
+            return rows
 
     def query_guarded(
         self,

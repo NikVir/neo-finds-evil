@@ -24,15 +24,16 @@ class FakeClient:
     """Stand-in for Neo4jClient.read_query: canned responder or raises."""
 
     def __init__(self, responder=None, raise_exc=None) -> None:
-        self.calls: list[tuple[str, dict | None, float | None]] = []
+        self.calls: list[tuple[str, dict | None, float | None, int | None]] = []
         self.responder = responder
         self.raise_exc = raise_exc
 
-    def read_query(self, cypher, parameters=None, *, timeout=None):
-        self.calls.append((cypher, parameters, timeout))
+    def read_query(self, cypher, parameters=None, *, timeout=None, max_rows=None):
+        self.calls.append((cypher, parameters, timeout, max_rows))
         if self.raise_exc is not None:
             raise self.raise_exc
-        return self.responder(cypher, parameters) if self.responder else []
+        rows = self.responder(cypher, parameters) if self.responder else []
+        return rows if max_rows is None else rows[:max_rows]
 
 
 # --------------------------------------------------------------------------- #
@@ -241,11 +242,142 @@ def test_query_graph_caps_rows():
     assert out["row_count"] == 3 and out["truncated"] is True
 
 
+def test_query_graph_large_user_limit_bounds_consumption():
+    # A huge user-supplied LIMIT passes reject_write and is left untouched by
+    # enforce_limit — the cap must bound *consumption* (max_rows=cap+1), not
+    # just slice an already-materialized list.
+    client = FakeClient(responder=lambda c, p: [{"i": i} for i in range(500)])
+    out = m.impl_query_graph(
+        client, "MATCH (e:WindowsEvent) RETURN e.id LIMIT 360000", limit_enforced=10
+    )
+    assert out["row_count"] == 10 and out["truncated"] is True
+    cypher, _params, _timeout, max_rows = client.calls[0]
+    assert "LIMIT 360000" in cypher  # user LIMIT untouched (server-side)
+    assert max_rows == 11  # cap+1: the cursor is abandoned past this point
+
+
+def test_run_hunt_bounds_consumption():
+    client = FakeClient(responder=lambda c, p: [{"i": i} for i in range(500)])
+    out = m.impl_run_hunt(client, "failed_logons", limit=5)
+    assert out["row_count"] == 5 and out["truncated"] is True
+    assert client.calls[0][3] == 6  # max_rows == cap+1
+
+
+def test_read_query_max_rows_stops_cursor_consumption(monkeypatch):
+    # Real Neo4jClient.read_query: the cursor must be read lazily and abandoned
+    # at max_rows — never drained into a full list first.
+    from neo4j import READ_ACCESS
+
+    from forensics.neo4j_client import Neo4jClient
+
+    consumed = {"n": 0}
+
+    class _FakeResult:
+        def __iter__(self):
+            for i in range(100_000):
+                consumed["n"] += 1
+                yield {"i": i}
+
+    class _Ctx:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    class _FakeTx(_Ctx):
+        def run(self, cypher, params):
+            return _FakeResult()
+
+    class _FakeSession(_Ctx):
+        def begin_transaction(self, timeout=None):
+            return _FakeTx()
+
+    class _FakeDriver:
+        def session(self, **kw):
+            assert kw.get("default_access_mode") == READ_ACCESS
+            return _FakeSession()
+
+    monkeypatch.setattr(
+        "forensics.neo4j_client.GraphDatabase.driver", lambda *a, **k: _FakeDriver()
+    )
+    client = Neo4jClient()
+    rows = client.read_query("MATCH (n) RETURN n LIMIT 5000000", max_rows=101)
+    assert len(rows) == 101
+    assert consumed["n"] == 101  # bounded consumption, not post-hoc slicing
+    # default path (no max_rows) still drains fully — behavior unchanged
+    consumed["n"] = 0
+    assert len(client.read_query("MATCH (n) RETURN n")) == 100_000
+
+
 def test_query_graph_driver_read_mode_rejection():
     # a write that somehow passed the lexical check is still rejected by the READ tx
     client = FakeClient(raise_exc=_Exc("Writing in read access mode not allowed"))
     out = m.impl_query_graph(client, "MATCH (n) RETURN n")  # lexically clean
     assert out["error_type"] == "write_rejected"
+
+
+# --------------------------------------------------------------------------- #
+# LIVE READ_ACCESS backstop (regression test for the headline guarantee)
+#
+# The bypass battery above proves the *lexical* guard; the fake-rejection test
+# above proves the error *mapping*. Neither proves the real backstop: that a
+# Neo4j READ transaction rejects a genuine write regardless of text. These
+# tests do — they deliberately BYPASS reject_write and send real writes through
+# Neo4jClient.read_query (the exact path query_graph uses) at the live server.
+# If a refactor ever dropped default_access_mode=READ_ACCESS (or routed a tool
+# through the write-capable `query`), these fail. Skips cleanly without a
+# reachable graph so the cold-clone suite stays green.
+# --------------------------------------------------------------------------- #
+
+
+def _live_client_or_skip():
+    from forensics.neo4j_client import Neo4jClient
+
+    client = Neo4jClient()
+    try:
+        client.read_query("RETURN 1 AS ok", timeout=5)
+    except Exception as exc:  # noqa: BLE001 - any failure to reach the server -> skip
+        client.close()
+        pytest.skip(
+            f"live Neo4j graph not reachable ({type(exc).__name__}): this test "
+            "exercises the real READ_ACCESS server backstop and needs the live graph"
+        )
+    return client
+
+
+# (probe cypher, query that must afterwards prove nothing changed)
+_LIVE_WRITE_PROBES = [
+    (
+        "CREATE (:__audit_probe {x: 1})",
+        "MATCH (p:__audit_probe) RETURN count(p) AS c",
+    ),
+    (
+        "MATCH (h:Host) WITH h LIMIT 1 SET h.__audit_probe = 1",
+        "MATCH (h:Host) WHERE h.__audit_probe IS NOT NULL RETURN count(h) AS c",
+    ),
+]
+
+
+@pytest.mark.parametrize(("probe", "residue_q"), _LIVE_WRITE_PROBES)
+def test_live_read_access_backstop_rejects_real_write(probe, residue_q):
+    from neo4j.exceptions import ClientError
+
+    client = _live_client_or_skip()
+    try:
+        count_q = "MATCH (n) RETURN count(n) AS c"
+        before = client.read_query(count_q, timeout=30)[0]["c"]
+        # sanity: the lexical guard WOULD catch this — we bypass it on purpose
+        assert m.reject_write(probe) is not None
+        with pytest.raises(ClientError) as exc_info:
+            client.read_query(probe, timeout=30)
+        # the real server-side rejection, not a canned message
+        assert exc_info.value.code == "Neo.ClientError.Statement.AccessMode"
+        # graph unchanged: identical node count, zero probe residue
+        assert client.read_query(count_q, timeout=30)[0]["c"] == before
+        assert client.read_query(residue_q, timeout=30)[0]["c"] == 0
+    finally:
+        client.close()
 
 
 def test_query_graph_timeout_typed_error():
