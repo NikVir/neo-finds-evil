@@ -19,6 +19,37 @@ The design intent: the tools make it *easy to abstain correctly*. Hunts return t
 
 **Call: "ATTEMPTED DC credential theft," not "confirmed."** This is the model abstaining on the *success* claim while still reporting the *attempt* with HIGH confidence — exactly the reliability behavior DFIR-Metric rewards. Contrast with the same-case `PWDumpX.exe` on `SRL-DMZFTP`, which **is** rated confirmed/executed because a 4688 records it running with a full path from the attacker's own staging directory.
 
+> **Calibration note — the SAM abstention is per-technique, not a blanket "DC credentials may be safe."** A *second*, independent DC credential-access technique is **confirmed executed** on the same host: an `ntdsutil` IFM dump of the full Active Directory database under `spsql` (see §1a). The honest reading across both is calibrated, not uniformly cautious: we **confirm** what has direct execution evidence (ntdsutil ran), **abstain** on what does not (whether the SAM copy succeeded, and whether either technique's output media was written/exfiltrated). The domain should be treated as credential-compromised on the strength of the confirmed ntdsutil execution — the SAM abstention narrows *which* artifact we can prove was obtained, it does not walk back the DC compromise.
+
+---
+
+## 1a. Confirmed-executed — `ntdsutil` IFM NTDS.dit extraction on the DC
+
+**Finding:** the full Active Directory database was extracted on `SRL-DC` via `ntdsutil` "Install From Media," run under the compromised service account `spsql`.
+
+**What is confirmed (HIGH — direct execution evidence):** 4688 process-creation events on `SRL-DC` record `ntdsutil` running with full command lines that create an IFM snapshot, e.g.
+
+```
+ntdsutil "ac i ntds" "ifm" "create full c:\$Recycle.Bin" q q   (SRL-DC:7444817, 2018-09-05 12:14:50 UTC)
+ntdsutil "ac i ntds" "ifm" "create full c:\temp"        q q   (SRL-DC:7444984)
+ntdsutil ... "ifm" "create full c:\windows\temp\perfmon\" q q (SRL-DC:7446022 / 7446080)
+```
+
+Unlike the in-process SAM copy of §1, this is **direct execution evidence**: a 4688 with the full command line. `get_event(SRL-DC:7444817)` resolves the parent process to **`C:\Windows\System32\wbem\WmiPrvSE.exe`** — confirming the command was launched **remotely over WMI**, not from an interactive admin console. The four IFM invocations split across two remote-execution channels: SRL-DC:7444817 / 7444984 under `spsql` via WMI (`WmiPrvSE.exe`), and SRL-DC:7446022 / 7446080 via WinRM/PowerShell Remoting (`wsmprovhost.exe`). Two independent remote-exec mechanisms driving the same IFM dump strengthens the attribution to deliberate hands-off-keyboard activity. The `c:\windows\temp\perfmon\` output target ties this event to the same staging fingerprint used across DMZFTP and FILE, linking it to the one actor.
+
+**What is NOT confirmed — and is reported as such (same discipline as §1):** that the IFM operation **completed and the `ntds.dit` + `SYSTEM` hive were written to disk and exfiltrated**. The 4688 proves `ntdsutil` was *invoked* with these arguments; the loaded tiers carry no file-creation event for the output media and no egress evidence. So: **execution confirmed; output-media creation and exfiltration abstained.** (A targeted EID 11 search for the IFM output media returned only unrelated WinSxS servicing manifests on SRL-DMZFTP — `ntdsapi` component files, not the `ntds.dit`/`SYSTEM` output — so no file-creation corroboration exists on SRL-DC.)
+
+**Why this is the stronger DC finding.** An IFM "create full" exports the entire `ntds.dit` — every domain account's hash — which is a superset of the single SAM hive targeted in §1. Two independent credential-access attempts against the DC (`ntdsutil` IFM and SAM-from-VSS), confirmed executed and attempted respectively, is what justifies treating the whole domain as compromised.
+
+**Cypher:**
+```cypher
+MATCH (e:WindowsEvent {eventId:4688})-[:REPORTED]->(:Host {hostname:'SRL-DC'})
+WHERE toLower(e.commandLine) CONTAINS 'ntdsutil' AND toLower(e.commandLine) CONTAINS 'ifm'
+RETURN e.id, e.targetUser, e.parentImage, e.commandLine ORDER BY e.id;
+```
+
+**Provenance note (honest disclosure).** This finding was surfaced by a **fresh autonomous agent run** during demo preparation — the original manual findings (`sans-dfir` FINDINGS.md §5) captured the SAM-from-VSS attempt but not the `ntdsutil` IFM dump. The agent's independent investigation **added a confirmed credential-access technique to the case**; we folded it in here rather than leaving the canon incomplete. The graph was unchanged by this run (read-only verified).
+
 ---
 
 ## 2. Error caught and corrected — the `SRL-FILE` persistence mis-attribution (F1)
@@ -49,7 +80,7 @@ The design intent: the tools make it *easy to abstain correctly*. Hunts return t
 
 ## 4. Known limitation — EID 10 (Sysmon ProcessAccess) is contentless
 
-`SRL-WKSTN05` holds 5,774 EID 10 (ProcessAccess) events — the natural place to confirm **LSASS-targeting credential access**. But `SourceImage` / `TargetImage` / `GrantedAccess` / `CallTrace` were **not** parsed into node properties this load; every standard field is empty. **We therefore cannot confirm LSASS credential access from the graph**, and we say so — the determination would need the raw `Microsoft-Windows-Sysmon%4Operational.evtx`. (Credential theft is still established independently via §1 and `PWDumpX`.) This is an abstention forced by a parsing gap, reported rather than papered over.
+`SRL-WKSTN05` holds 5,774 EID 10 (ProcessAccess) events — the natural place to confirm **LSASS-targeting credential access**. But `SourceImage` / `TargetImage` / `GrantedAccess` / `CallTrace` were **not** parsed into node properties this load; every standard field is empty. **We therefore cannot confirm LSASS credential access from the graph**, and we say so — the determination would need the raw `Microsoft-Windows-Sysmon%4Operational.evtx`. (Credential theft is still established independently via §1, §1a, and `PWDumpX`.) This is an abstention forced by a parsing gap, reported rather than papered over.
 
 Related, narrower gaps reported in the findings: 7045 service **binary paths** (`imagePath`) weren't parsed (so Metasploit/masquerading service identification rests on **name + timing**, an explicit *inference*, rated MEDIUM); and the C2 domain `squirreldirectory.com` does **not** appear in DNS telemetry (no Sysmon on the Empire hosts) — it's identified from decoded 4104 content, which is noted as *stronger* than a DNS lookup, not weaker.
 
@@ -76,6 +107,7 @@ We also report the **benign-activity exclusions** the agent made on this case (t
 | WMI `PerformanceMonitor` persistence (RD01/RD02/WKSTN05) | **Confirmed loaded/compiled**; instantiation **inferred** | HIGH / MEDIUM-HIGH |
 | `SRL-FILE` as a persistence host | **Retracted** (caught via raw-vs-graph control) | — |
 | `PWDumpX.exe` on DMZFTP | **Confirmed executed** | HIGH |
+| DC `ntdsutil` IFM NTDS.dit dump (spsql, WmiPrvSE parent) | **Confirmed executed** (4688); output-media creation & exfil **abstained** | HIGH executed |
 | DC SAM-from-VSS copy | **Attempted** (command ran); success **abstained** | HIGH attempt / unconfirmed success |
 | Metasploit identity of `df0398a`/`8556ce1` | **Inferred** (name + timing; binary path not parsed) | MEDIUM |
 | LSASS credential access via EID 10 | **Abstained** (fields not parsed) | — |
