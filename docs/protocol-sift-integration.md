@@ -102,7 +102,7 @@ A new component (greenfield — our repo has no MCP code today). Python, using t
 
 ### 4.0 BUILD STATUS — ✅ DELIVERED (v1)
 
-Implemented in **`src/forensics/mcp_server.py`** (console script `forensics-mcp`), registered project-scoped via **`.mcp.json`** at the repo root. `mcp>=1.2` added to `pyproject.toml`. **45 unit tests** (`tests/test_mcp_server.py`), full suite **163 passed**, ruff clean. Read-only verified by a live stdio smoke test (graph byte-identical: 359,788 nodes before and after).
+Implemented in **`src/forensics/mcp_server.py`** (console script `forensics-mcp`), registered project-scoped via **`.mcp.json`** at the repo root. `mcp>=1.2` added to `pyproject.toml`. **50 unit tests** (`tests/test_mcp_server.py`), full suite **173 passed, 5 skipped** (the two live READ-backstop regression tests skip cleanly when no graph is reachable), ruff clean. Read-only verified by a live stdio smoke test (graph byte-identical: 359,788 nodes before and after).
 
 **Final tools (exactly five, all read-only):**
 

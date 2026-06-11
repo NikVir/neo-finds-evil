@@ -59,6 +59,8 @@ Related, narrower gaps reported in the findings: 7045 service **binary paths** (
 
 The `query_graph` write-rejection pre-check is **intentionally biased toward false positives**: a benign read query that contains a write *keyword* as a substring or identifier (e.g. a property literally named `created`, or the token `set` inside a longer word the whole-word check still flags in edge cases) can be **refused** even though it only reads.
 
+The most consequential case for an analyst: because the check scans **string literals** too (that is what catches write verbs smuggled into apoc procedure arguments), a legitimate search for **anti-forensics command lines is rejected** — e.g. `MATCH (p:Process) WHERE p.commandLine CONTAINS 'vssadmin delete shadows' RETURN p`, or literals containing `reg delete` / `Set-MpPreference`, are refused on the `DELETE`/`SET` tokens. The workaround is the constrained surface that bypasses the lexical guard by design: named hunts (`run_hunt`, e.g. `log_cleared`, `powershell_script`) and `get_event` traceback. This trade-off is deliberate and disclosed (also in the README's Known-limitations list), not an accident.
+
 **Why we accept that direction:** for a read-only forensic server, **over-rejection is the safe failure mode** — it can only block a query, never allow a write. And it is **backstopped**: the real guarantee is the Neo4j **READ transaction** (`default_access_mode=READ`), which rejects writes regardless of text, so the lexical guard is defense-in-depth, not the boundary. A 21-case bypass battery (`tests/test_mcp_server.py`) confirms no *write* slips through; the cost is the occasional false rejection of a read, which surfaces as a typed `write_rejected` error the agent can rephrase around.
 
 We also report the **benign-activity exclusions** the agent made on this case (to avoid false-positive *findings*): F-Response/`mnemosyne` IR tooling, defensive Sysmon-deployment download cradles on DMZFTP, `wevtutil im` Office manifest installs (not log clearing), and Chrome NXDOMAIN-probe random DNS (not DGA). Each was explicitly classified as **not attacker activity** rather than counted as evil.
@@ -159,6 +161,15 @@ Report-JSON summary (full file: [`docs/benchmark/vigia-report.json`](benchmark/v
 | FNR-MAL (MALICE → BENIGN) | **0%** | ≤ 10% | ✅ |
 | TTP Coverage (exact) | **14.3%** (2/14) | ≥ 60% | ❌ |
 | TTP Coverage (family, parent-matched) | 42.9% (6/14) | — (informational) | ❌ |
+
+> **Statistical-power caveat (read before citing the headline).** These
+> numbers rest on very small n: verdict accuracy is computed over **3**
+> `score_against` cases (achievable values: 0/33/67/100% — the ≥80% bar can
+> only be met by a perfect 3/3), and the FPR over a **single** FP-eligible
+> case (mechanically 0% or 100%, no resolution between). The scorer itself
+> discloses this basis in its output (`false_positive_basis`); we foreground
+> it here so "100% / 0%" is read as *consistent with* good adjudication on
+> this dataset, not as a precision claim.
 
 **The verdicts are correct; the TTP labelling is the honest weak spot — we do not
 paper over it.** Two distinct effects drive the low coverage:
