@@ -1,0 +1,809 @@
+diff --git a/README.md b/README.md
+index 7b4ed20..0db0fb8 100644
+--- a/README.md
++++ b/README.md
+@@ -1,6 +1,6 @@
+-# neo-finds-evil — a read-only graph-correlation layer for AI-driven DFIR
++# neo-finds-evil: a read-only graph-correlation layer for AI-driven DFIR
+ 
+-**SANS "FIND EVIL!" hackathon submission.** A read-only **Neo4j graph-correlation layer** that **extends [Protocol SIFT](https://github.com/teamdfir/protocol-sift)**. Protocol SIFT gives a Claude Code agent *per-artifact* forensic tools (Volatility, Plaso, Sleuth Kit, EZ Tools, YARA) — deep on one artifact at a time, but with **no memory across hosts or time**. This project adds the missing layer: a graph of *every* artifact across *every* host over the *whole* timeline, exposed to the same agent as **architecturally read-only MCP tools** so it can reason **across hosts and across time** — lateral movement, cross-host tool reuse, credential-theft chains — that no single-tool output can show.
++**SANS "FIND EVIL!" hackathon submission.** A read-only **Neo4j graph-correlation layer** that **extends [Protocol SIFT](https://github.com/teamdfir/protocol-sift)**. Protocol SIFT gives a Claude Code agent *per-artifact* forensic tools (Volatility, Plaso, Sleuth Kit, EZ Tools, YARA), deep on one artifact at a time, but with **no memory across hosts or time**. This project adds the missing layer: a graph of *every* artifact across *every* host over the *whole* timeline, exposed to the same agent as **architecturally read-only MCP tools** so it can reason **across hosts and across time** (lateral movement, cross-host tool reuse, credential-theft chains) that no single-tool output can show.
+ 
+ > The five MCP tools are **read-only by construction**: the server registers no write tool, and the one free-form query path (`query_graph`) runs inside a Neo4j READ transaction that the driver itself refuses to let write. See [Security boundaries](#the-architectural-read-only-guardrail).
+ 
+@@ -8,7 +8,7 @@
+ 
+ ## The problem
+ 
+-Modern IR runs at machine speed, and an LLM agent can drive forensic CLIs faster than an analyst can type. But each CLI invocation is an **island**: `vol.py` dumps one machine's processes; `EvtxECmd` parses one host's event log; `log2timeline` builds one image's timeline. The evidence that matters in an enterprise intrusion lives *between* those islands — the same tool reused on six hosts, an account brute-forced on one host and succeeding on another, a credential dumper staged here and a SAM hive copied there. A per-artifact agent literally **cannot express** those questions, because the correlation never exists in any one tool's output.
++Modern IR runs at machine speed, and an LLM agent can drive forensic CLIs faster than an analyst can type. But each CLI invocation is an **island**: `vol.py` dumps one machine's processes; `EvtxECmd` parses one host's event log; `log2timeline` builds one image's timeline. The evidence that matters in an enterprise intrusion lives *between* those islands: the same tool reused on six hosts, an account brute-forced on one host and succeeding on another, a credential dumper staged here and a SAM hive copied there. A per-artifact agent literally **cannot express** those questions, because the correlation never exists in any one tool's output.
+ 
+ `neo-finds-evil` closes that gap by normalizing all artifacts into one **Neo4j graph** (hosts × processes × events × files × registry × network × accounts × time) and handing the agent a small, vetted set of **read-only** correlation tools over it.
+ 
+@@ -20,12 +20,12 @@ Every FIND EVIL! required component and exactly where to find it:
+ 
+ | Required component | Location |
+ |---|---|
+-| Public code repository | this repo — *pending: public GitHub mirror (URL added at submission)* |
+-| Open-source license | [`./LICENSE`](./LICENSE) — Apache-2.0 |
+-| README with setup instructions | this file — [Setup / Run](#setup--run-judge-runbook) |
+-| Step-by-step run instructions | this file — [Setup / Run](#setup--run-judge-runbook) |
++| Public code repository | this repo, *pending: public GitHub mirror (URL added at submission)* |
++| Open-source license | [`./LICENSE`](./LICENSE), Apache-2.0 |
++| README with setup instructions | this file, [Setup / Run](#setup--run-judge-runbook) |
++| Step-by-step run instructions | this file, [Setup / Run](#setup--run-judge-runbook) |
+ | Text description of features | this file (above) + [`docs/`](./docs/) |
+-| Demonstration video | *pending — link added at submission* |
++| Demonstration video | *pending, link added at submission* |
+ | Architecture diagram | [`docs/architecture.png`](docs/architecture.png) (described in [`docs/architecture.md`](docs/architecture.md)) |
+ | Evidence Dataset Documentation | [`docs/evidence-dataset.md`](docs/evidence-dataset.md) |
+ | Accuracy Report | [`docs/accuracy-report.md`](docs/accuracy-report.md) |
+@@ -37,7 +37,7 @@ Every FIND EVIL! required component and exactly where to find it:
+ 
+ ![Architecture](docs/architecture.png)
+ 
+-*The Claude Code agent runs under Protocol SIFT's operating rules. Protocol SIFT contributes the per-artifact Bash/Skill tool layer over read-only evidence mounts; this project contributes the **only MCP server** — `forensics-graph`, five read-only tools over the Neo4j correlation graph. The agent gains cross-host/cross-time reasoning without gaining any write path to evidence or graph.*
++*The Claude Code agent runs under Protocol SIFT's operating rules. Protocol SIFT contributes the per-artifact Bash/Skill tool layer over read-only evidence mounts; this project contributes the **only MCP server**: `forensics-graph`, five read-only tools over the Neo4j correlation graph. The agent gains cross-host/cross-time reasoning without gaining any write path to evidence or graph.*
+ 
+ Full written description, data/control flow, and the architectural-vs-prompt guardrail analysis: **[docs/architecture.md](docs/architecture.md)**.
+ 
+@@ -48,17 +48,17 @@ Full written description, data/control flow, and the architectural-vs-prompt gua
+ | Required demonstration | Where it's evidenced |
+ |---|---|
+ | **Self-correction** | Every MCP tool returns *typed* errors (`unknown_hunt`, `write_rejected`, `timeout`, `unknown_host`, `not_found`, …) with a *what-to-do-instead* message, so the agent corrects its own call instead of giving up. A **real, logged** self-correction run (empty result → schema discovery → corrected query → traceable event) is in **[docs/execution-logs/](docs/execution-logs/)**; see also `docs/protocol-sift-integration.md` §5.1. |
+-| **Accuracy / traceability** | `get_event(event_id)` resolves any finding back to its **source `WindowsEvent`** (channel = the source `.evtx`), and per-event hunts carry `event_id` + `channel`, giving an unbroken *hunt row → event id → source artifact* chain. Honest accuracy self-assessment — confirmed vs. inferred, and **errors we caught and corrected** — in **[docs/accuracy-report.md](docs/accuracy-report.md)**. |
+-| **Analytical reasoning (cross-host / cross-time)** | The core contribution. The graph correlates all 7 hosts + the full timeline; `run_hunt` / `query_graph` answer questions no single SIFT tool can — lateral movement, cross-host tool reuse, the Empire → PsExec → SAM-theft chain. Dataset + headline findings: **[docs/evidence-dataset.md](docs/evidence-dataset.md)**. |
++| **Accuracy / traceability** | `get_event(event_id)` resolves any finding back to its **source `WindowsEvent`** (channel = the source `.evtx`), and per-event hunts carry `event_id` + `channel`, giving an unbroken *hunt row → event id → source artifact* chain. Honest accuracy self-assessment (confirmed vs. inferred, and **errors we caught and corrected**) in **[docs/accuracy-report.md](docs/accuracy-report.md)**. |
++| **Analytical reasoning (cross-host / cross-time)** | The core contribution. The graph correlates all 7 hosts + the full timeline; `run_hunt` / `query_graph` answer questions no single SIFT tool can: lateral movement, cross-host tool reuse, the Empire → PsExec → SAM-theft chain. Dataset + headline findings: **[docs/evidence-dataset.md](docs/evidence-dataset.md)**. |
+ | **Architectural (not prompt-based) guardrails** | The read-only guarantee is a **property of the server**, not a prompt: no write tool is registered, and `query_graph` runs in a Neo4j READ transaction (`default_access_mode=READ`) that rejects writes regardless of text. See [below](#the-architectural-read-only-guardrail) and **[docs/architecture.md](docs/architecture.md)** → *Security boundaries*. |
+ 
+ ### The architectural read-only guardrail
+ 
+ Three layers, in order of strength:
+ 
+-1. **No write tool exists.** The MCP server registers exactly five tools — `list_hunts`, `run_hunt`, `get_host_summary`, `get_event`, `query_graph` — all read-only. The agent has **no MCP affordance** to `CREATE`/`MERGE`/`SET`/`DELETE`. This is a property of the tool surface, not a rule the agent is asked to follow.
+-2. **`query_graph` runs in a READ transaction.** The one free-form path opens its session with `default_access_mode=READ` and an explicit read transaction — **the Neo4j driver/server refuses any write**, regardless of the query text. This is the true boundary.
+-3. **Lexical pre-check + resource bounds (defense in depth).** A comment-stripped, whole-word check rejects `CREATE/MERGE/DELETE/SET/REMOVE/DROP/DETACH/FOREACH`, `LOAD CSV`, `CALL { … } IN TRANSACTIONS`, and apoc/db write procedures *before* execution; every query is wrapped with a server-side timeout and a mandatory `LIMIT`. (This lexical guard intentionally **over-rejects** — see [Known limitations](#known-limitations--future-work).)
++1. **No write tool exists.** The MCP server registers exactly five tools (`list_hunts`, `run_hunt`, `get_host_summary`, `get_event`, `query_graph`), all read-only. The agent has **no MCP affordance** to `CREATE`/`MERGE`/`SET`/`DELETE`. This is a property of the tool surface, not a rule the agent is asked to follow.
++2. **`query_graph` runs in a READ transaction.** The one free-form path opens its session with `default_access_mode=READ` and an explicit read transaction. **The Neo4j driver/server refuses any write**, regardless of the query text. This is the true boundary.
++3. **Lexical pre-check + resource bounds (defense in depth).** A comment-stripped, whole-word check rejects `CREATE/MERGE/DELETE/SET/REMOVE/DROP/DETACH/FOREACH`, `LOAD CSV`, `CALL { … } IN TRANSACTIONS`, and apoc/db write procedures *before* execution; every query is wrapped with a server-side timeout and a mandatory `LIMIT`. (This lexical guard intentionally **over-rejects**, see [Known limitations](#known-limitations--future-work).)
+ 
+ A live write-rejection (the agent tried `MATCH (n) DETACH DELETE n`) and its audit-log line are shown in `docs/protocol-sift-integration.md` §4.0.
+ 
+@@ -123,7 +123,7 @@ docker exec neo4j-forensics cypher-shell -u neo4j -p forensics123 "MATCH (n) RET
+ 
+ > `forensics123` is the **documented localhost demo-container password** for this self-contained graph. It is not a secret and is not reused for anything else; the container binds to `127.0.0.1` only.
+ >
+-> **Note — credentials are baked into the restored data dir.** The restored data directory already contains its credentials (`neo4j` / `forensics123`), so `NEO4J_AUTH` is **ignored when starting over an existing store** — this is expected, and the baked password is what `.mcp.json` and the sanity-check commands use. To change it (e.g. before exposing the port), use an in-database `ALTER USER` and update `.mcp.json`'s `NEO4J_PASSWORD` — editing `NEO4J_AUTH` alone will not work on a restored store.
++> **Note: credentials are baked into the restored data dir.** The restored data directory already contains its credentials (`neo4j` / `forensics123`), so `NEO4J_AUTH` is **ignored when starting over an existing store**. This is expected, and the baked password is what `.mcp.json` and the sanity-check commands use. To change it (e.g. before exposing the port), use an in-database `ALTER USER` and update `.mcp.json`'s `NEO4J_PASSWORD`. Editing `NEO4J_AUTH` alone will not work on a restored store.
+ 
+ ### 4. Register the MCP server
+ 
+@@ -149,13 +149,13 @@ claude mcp add --transport stdio forensics-graph -- uv run forensics-mcp
+ claude
+ ```
+ 
+-Then paste a question the graph can answer but a per-artifact tool cannot — the **`spsql` cross-host trace**:
++Then paste a question the graph can answer but a per-artifact tool cannot, the **`spsql` cross-host trace**:
+ 
+-> *"The account `spsql` was brute-forced in this case. Using only the `forensics-graph` MCP tools, trace its activity across all hosts — where did it log in, what is it associated with, and pull one specific source event via `get_event` to anchor the evidence trail."*
++> *"The account `spsql` was brute-forced in this case. Using only the `forensics-graph` MCP tools, trace its activity across all hosts: where did it log in, what is it associated with, and pull one specific source event via `get_event` to anchor the evidence trail."*
+ 
+-The agent will discover the schema, run a cross-host correlation, and resolve a single failed-logon event (e.g. `SRL-DMZFTP:74648`) back to its source `.evtx` — the exact trace recorded in **[docs/execution-logs/](docs/execution-logs/)**.
++The agent will discover the schema, run a cross-host correlation, and resolve a single failed-logon event (e.g. `SRL-DMZFTP:74648`) back to its source `.evtx`, the exact trace recorded in **[docs/execution-logs/](docs/execution-logs/)**.
+ 
+-> **What you'll see — an empty first result is expected.** The agent typically probes the graph schema first; an initial empty result followed by a corrected query is **intended self-correction**, not an error. `spsql` is not a `UserAccount` node — it lives as the `targetUser` property on `WindowsEvent` nodes, and the relevant property keys are `computer` / `id` / `eventId` (not `host` / `event_id`). To reproduce the headline result directly, the productive cross-host view groups `spsql` events by host and event id:
++> **What you'll see: an empty first result is expected.** The agent typically probes the graph schema first; an initial empty result followed by a corrected query is **intended self-correction**, not an error. `spsql` is not a `UserAccount` node, it lives as the `targetUser` property on `WindowsEvent` nodes, and the relevant property keys are `computer` / `id` / `eventId` (not `host` / `event_id`). To reproduce the headline result directly, the productive cross-host view groups `spsql` events by host and event id:
+ >
+ > ```cypher
+ > // via query_graph — spsql activity correlated across hosts
+@@ -165,7 +165,7 @@ The agent will discover the schema, run a cross-host correlation, and resolve a
+ > ORDER BY host, eventId
+ > ```
+ >
+-> This surfaces the brute force — `4625` failures on `SRL-DMZFTP` from `172.16.4.5` — then the follow-on `4624` successes and `4688` process-creates across `SRL-DC`, `SRL-FILE`, `SRL-RD01`, `SRL-RD02`, and `SRL-WKSTN05`. Prefer this over the `failed_logons` hunt, whose top rows are dominated by `BASE-HUNT$` machine-account noise.
++> This surfaces the brute force (`4625` failures on `SRL-DMZFTP` from `172.16.4.5`), then the follow-on `4624` successes and `4688` process-creates across `SRL-DC`, `SRL-FILE`, `SRL-RD01`, `SRL-RD02`, and `SRL-WKSTN05`. Prefer this over the `failed_logons` hunt, whose top rows are dominated by `BASE-HUNT$` machine-account noise.
+ 
+ ---
+ 
+@@ -214,20 +214,20 @@ neo-finds-evil/
+ 
+ ## Known limitations & future work
+ 
+-- **Neo4j Community is single-database / single-user.** A true read-only DB *role* isn't really available on Community, so the **tool layer (and the READ transaction) is the enforced boundary** — by design, and tested hard (see `tests/test_mcp_server.py`).
++- **Neo4j Community is single-database / single-user.** A true read-only DB *role* isn't really available on Community, so the **tool layer (and the READ transaction) is the enforced boundary**, by design, and tested hard (see `tests/test_mcp_server.py`).
+ - **Engine portability.** Hunts are expressed in Cypher; porting to another graph engine means re-expressing the `QUERIES`. The tool *contract* (the five MCP tools) is engine-agnostic.
+ - **Aggregate-hunt traceability.** Per-event hunts carry `event_id` + `channel` for direct `get_event` traceback; aggregate/count hunts (e.g. `event_coverage`, `lateral_tool_reuse`) return host + key sufficient for a follow-up `get_host_summary` / `query_graph`, but are not per-event by nature.
+ - **EID 10 (Sysmon ProcessAccess) is contentless in this graph.** `SourceImage`/`TargetImage`/`GrantedAccess` were not parsed into node properties this load, so LSASS-targeting credential access can't be confirmed from the graph alone (it's established independently). See `docs/accuracy-report.md`.
+-- **The `query_graph` lexical guard over-rejects — including some legitimate DFIR searches.** The write-word check scans the whole query text *including string literals*, so a pure read that searches command lines for anti-forensics indicators — e.g. `WHERE p.commandLine CONTAINS 'vssadmin delete shadows'`, `reg delete`, or `Set-MpPreference` — is refused (the literal contains `DELETE`/`SET`). This is **deliberate**: scanning literals is what also catches write verbs smuggled into apoc procedure string arguments, and for a read-only forensic server over-rejection is the safe failure direction — it can only block a read, never allow a write (the READ transaction, not the lexical list, is the real guarantee). The practical workaround is the constrained surface: named hunts via `run_hunt` (e.g. `log_cleared`, `powershell_script`) and `get_event` traceback, which don't pass through the lexical guard.
+-- **4624 logon dedup is time-blind.** To collapse ~1.6M routine logons, ingest keeps only the *first* 4624 per `(target_user, source_ip, logon_type)` tuple — the dedup key has **no time component**. A repeat of an already-seen tuple at a later, anomalous time (e.g. a 02:00 logon from the same user/IP/type that previously appeared at 09:00) is dropped, so temporal hunts like `after_hours_logons` see first occurrences only. Low impact on the SRL-2018 intrusion (an external attacker's lateral movement creates *new* tuples, which are kept), but a real blind spot for insider / after-hours scenarios — disclosed here and in `docs/accuracy-report.md` §1 rather than discovered.
++- **The `query_graph` lexical guard over-rejects, including some legitimate DFIR searches.** The write-word check scans the whole query text *including string literals*, so a pure read that searches command lines for anti-forensics indicators (e.g. `WHERE p.commandLine CONTAINS 'vssadmin delete shadows'`, `reg delete`, or `Set-MpPreference`) is refused (the literal contains `DELETE`/`SET`). This is **deliberate**: scanning literals is what also catches write verbs smuggled into apoc procedure string arguments, and for a read-only forensic server over-rejection is the safe failure direction: it can only block a read, never allow a write (the READ transaction, not the lexical list, is the real guarantee). The practical workaround is the constrained surface: named hunts via `run_hunt` (e.g. `log_cleared`, `powershell_script`) and `get_event` traceback, which don't pass through the lexical guard.
++- **4624 logon dedup is time-blind.** To collapse ~1.6M routine logons, ingest keeps only the *first* 4624 per `(target_user, source_ip, logon_type)` tuple, the dedup key has **no time component**. A repeat of an already-seen tuple at a later, anomalous time (e.g. a 02:00 logon from the same user/IP/type that previously appeared at 09:00) is dropped, so temporal hunts like `after_hours_logons` see first occurrences only. Low impact on the SRL-2018 intrusion (an external attacker's lateral movement creates *new* tuples, which are kept), but a real blind spot for insider / after-hours scenarios, disclosed here and in `docs/accuracy-report.md` §1 rather than discovered.
+ - **The vigia benchmark headline rests on small n.** Verdict accuracy is computed over **3** `score_against` cases and the FPR over a **single** eligible case, so the only achievable values are coarse (0/33/67/100% and 0/100% respectively). The scorer discloses this basis in its output; see the statistical-power caveat in `docs/accuracy-report.md` §6 before citing the 100%/0% numbers.
+ 
+ ---
+ 
+ ## Credits
+ 
+-- Built to **extend Protocol SIFT by Rob Lee / SANS / teamdfir** — the AI-driven DFIR framework for the **SANS SIFT Workstation**.
++- Built to **extend Protocol SIFT by Rob Lee / SANS / teamdfir**, the AI-driven DFIR framework for the **SANS SIFT Workstation**.
+ - Runs on the **SANS SIFT Workstation** and the **Neo4j** graph database (Community Edition).
+-- Evidence is the publicly published **SANS FOR508** lab scenario (Stark Research Labs / SHIELDBASE) — see `docs/evidence-dataset.md`. All names/IPs/indicators are training-scenario artifacts, not real persons or infrastructure.
++- Evidence is the publicly published **SANS FOR508** lab scenario (Stark Research Labs / SHIELDBASE), see `docs/evidence-dataset.md`. All names/IPs/indicators are training-scenario artifacts, not real persons or infrastructure.
+ 
+ Licensed under **Apache-2.0** (see `LICENSE`, `NOTICE`).
+diff --git a/docs/accuracy-report.md b/docs/accuracy-report.md
+index 02c4650..7de2f3d 100644
+--- a/docs/accuracy-report.md
++++ b/docs/accuracy-report.md
+@@ -1,33 +1,33 @@
+ # Accuracy Report
+ 
+-This report is a deliberately **honest** self-assessment of the agent + correlation layer on the SRL-2018 case. It follows the reliability framing of recognized DFIR-LLM evaluation work (e.g. **DFIR-Metric**, which scores not just raw accuracy but **reliability** — explicitly rewarding a model that **abstains when uncertain** over one that gives a confident wrong answer). Throughout, we distinguish **confirmed** findings (direct, reproducible evidence) from **inferences** (name/timing/behavioral heuristics), and we document **errors the agent caught and corrected** rather than hiding them.
++This report is a deliberately **honest** self-assessment of the agent + correlation layer on the SRL-2018 case. It follows the reliability framing of recognized DFIR-LLM evaluation work (e.g. **DFIR-Metric**, which scores not just raw accuracy but **reliability**, explicitly rewarding a model that **abstains when uncertain** over one that gives a confident wrong answer). Throughout, we distinguish **confirmed** findings (direct, reproducible evidence) from **inferences** (name/timing/behavioral heuristics), and we document **errors the agent caught and corrected** rather than hiding them.
+ 
+ The design intent: the tools make it *easy to abstain correctly*. Hunts return typed, bounded results; `get_event` forces a finding back to a source artifact; and where evidence is missing, the honest output is "attempted / unconfirmed," not a fabricated confirmation.
+ 
+ ---
+ 
+-## 1. Confirmed vs. inferred — the SAM-theft call
++## 1. Confirmed vs. inferred: the SAM-theft call
+ 
+ **Finding:** an attempt to copy the domain controller's **SAM hive out of a Volume Shadow Copy** (`\\BASE-DC\C$\@GMT-2018.08.31-11.00.01\…\config\SAM`), issued from `SRL-FILE`.
+ 
+-**What is confirmed:** the command was **compiled and run by the PowerShell engine** on `SRL-FILE` at 2018-08-31 22:52:08 UTC — proven by the *decoded* script-block content (EID 4104). That much is direct evidence.
++**What is confirmed:** the command was **compiled and run by the PowerShell engine** on `SRL-FILE` at 2018-08-31 22:52:08 UTC, proven by the *decoded* script-block content (EID 4104). That much is direct evidence.
+ 
+-**What is NOT confirmed — and is reported as such:** that the copy **succeeded** (snapshot actually present + share reachable in user context + bytes written). The agent ran an explicit corroboration check and abstained from "confirmed" because:
+-- **No process-execution event** — *and none is expected*: `cp` is the PowerShell `Copy-Item` alias, runs in-process inside the already-running agent, spawns no child, so there is no 4688/EID 1 to find. Absence here is **not** exculpatory (we say so rather than over-reading the silence).
+-- **No file-creation telemetry** — `SRL-FILE` has no Sysmon, so no EID 11 confirms the hive landed locally.
+-- **No time-anchored share access** — the DC's 4624 set was de-duplicated to `(user, src-IP, logon-type)` tuples with no per-event timestamps, so a user-context C$ access *at 22:52* can be neither confirmed nor refuted; EID 5140/5145 are not in the graph.
++**What is NOT confirmed, and is reported as such:** that the copy **succeeded** (snapshot actually present + share reachable in user context + bytes written). The agent ran an explicit corroboration check and abstained from "confirmed" because:
++- **No process-execution event**, *and none is expected*: `cp` is the PowerShell `Copy-Item` alias, runs in-process inside the already-running agent, spawns no child, so there is no 4688/EID 1 to find. Absence here is **not** exculpatory (we say so rather than over-reading the silence).
++- **No file-creation telemetry**, `SRL-FILE` has no Sysmon, so no EID 11 confirms the hive landed locally.
++- **No time-anchored share access**, the DC's 4624 set was de-duplicated to `(user, src-IP, logon-type)` tuples with no per-event timestamps, so a user-context C$ access *at 22:52* can be neither confirmed nor refuted; EID 5140/5145 are not in the graph.
+ 
+-**Call: "ATTEMPTED DC credential theft," not "confirmed."** This is the model abstaining on the *success* claim while still reporting the *attempt* with HIGH confidence — exactly the reliability behavior DFIR-Metric rewards. Contrast with the same-case `PWDumpX.exe` on `SRL-DMZFTP`, which **is** rated confirmed/executed because a 4688 records it running with a full path from the attacker's own staging directory.
++**Call: "ATTEMPTED DC credential theft," not "confirmed."** This is the model abstaining on the *success* claim while still reporting the *attempt* with HIGH confidence, exactly the reliability behavior DFIR-Metric rewards. Contrast with the same-case `PWDumpX.exe` on `SRL-DMZFTP`, which **is** rated confirmed/executed because a 4688 records it running with a full path from the attacker's own staging directory.
+ 
+-> **Calibration note — the SAM abstention is per-technique, not a blanket "DC credentials may be safe."** A *second*, independent DC credential-access technique is **confirmed executed** on the same host: an `ntdsutil` IFM dump of the full Active Directory database under `spsql` (see §1a). The honest reading across both is calibrated, not uniformly cautious: we **confirm** what has direct execution evidence (ntdsutil ran), **abstain** on what does not (whether the SAM copy succeeded, and whether either technique's output media was written/exfiltrated). The domain should be treated as credential-compromised on the strength of the confirmed ntdsutil execution — the SAM abstention narrows *which* artifact we can prove was obtained, it does not walk back the DC compromise.
++> **Calibration note: the SAM abstention is per-technique, not a blanket "DC credentials may be safe."** A *second*, independent DC credential-access technique is **confirmed executed** on the same host: an `ntdsutil` IFM dump of the full Active Directory database under `spsql` (see §1a). The honest reading across both is calibrated, not uniformly cautious: we **confirm** what has direct execution evidence (ntdsutil ran), **abstain** on what does not (whether the SAM copy succeeded, and whether either technique's output media was written/exfiltrated). The domain should be treated as credential-compromised on the strength of the confirmed ntdsutil execution; the SAM abstention narrows *which* artifact we can prove was obtained, it does not walk back the DC compromise.
+ 
+ ---
+ 
+-## 1a. Confirmed-executed — `ntdsutil` IFM NTDS.dit extraction on the DC
++## 1a. Confirmed-executed: `ntdsutil` IFM NTDS.dit extraction on the DC
+ 
+ **Finding:** the full Active Directory database was extracted on `SRL-DC` via `ntdsutil` "Install From Media," run under the compromised service account `spsql`.
+ 
+-**What is confirmed (HIGH — direct execution evidence):** 4688 process-creation events on `SRL-DC` record `ntdsutil` running with full command lines that create an IFM snapshot, e.g.
++**What is confirmed (HIGH, direct execution evidence):** 4688 process-creation events on `SRL-DC` record `ntdsutil` running with full command lines that create an IFM snapshot, e.g.
+ 
+ ```
+ ntdsutil "ac i ntds" "ifm" "create full c:\$Recycle.Bin" q q   (SRL-DC:7444817, 2018-09-05 12:14:50 UTC)
+@@ -35,11 +35,11 @@ ntdsutil "ac i ntds" "ifm" "create full c:\temp"        q q   (SRL-DC:7444984)
+ ntdsutil ... "ifm" "create full c:\windows\temp\perfmon\" q q (SRL-DC:7446022 / 7446080)
+ ```
+ 
+-Unlike the in-process SAM copy of §1, this is **direct execution evidence**: a 4688 with the full command line. `get_event(SRL-DC:7444817)` resolves the parent process to **`C:\Windows\System32\wbem\WmiPrvSE.exe`** — confirming the command was launched **remotely over WMI**, not from an interactive admin console. The four IFM invocations split across two remote-execution channels: SRL-DC:7444817 / 7444984 under `spsql` via WMI (`WmiPrvSE.exe`), and SRL-DC:7446022 / 7446080 via WinRM/PowerShell Remoting (`wsmprovhost.exe`). Two independent remote-exec mechanisms driving the same IFM dump strengthens the attribution to deliberate hands-off-keyboard activity. The `c:\windows\temp\perfmon\` output target ties this event to the same staging fingerprint used across DMZFTP and FILE, linking it to the one actor.
++Unlike the in-process SAM copy of §1, this is **direct execution evidence**: a 4688 with the full command line. `get_event(SRL-DC:7444817)` resolves the parent process to **`C:\Windows\System32\wbem\WmiPrvSE.exe`**, confirming the command was launched **remotely over WMI**, not from an interactive admin console. The four IFM invocations split across two remote-execution channels: SRL-DC:7444817 / 7444984 under `spsql` via WMI (`WmiPrvSE.exe`), and SRL-DC:7446022 / 7446080 via WinRM/PowerShell Remoting (`wsmprovhost.exe`). Two independent remote-exec mechanisms driving the same IFM dump strengthens the attribution to deliberate hands-off-keyboard activity. The `c:\windows\temp\perfmon\` output target ties this event to the same staging fingerprint used across DMZFTP and FILE, linking it to the one actor.
+ 
+-**What is NOT confirmed — and is reported as such (same discipline as §1):** that the IFM operation **completed and the `ntds.dit` + `SYSTEM` hive were written to disk and exfiltrated**. The 4688 proves `ntdsutil` was *invoked* with these arguments; the loaded tiers carry no file-creation event for the output media and no egress evidence. So: **execution confirmed; output-media creation and exfiltration abstained.** (A targeted EID 11 search for the IFM output media returned only unrelated WinSxS servicing manifests on SRL-DMZFTP — `ntdsapi` component files, not the `ntds.dit`/`SYSTEM` output — so no file-creation corroboration exists on SRL-DC.)
++**What is NOT confirmed, and is reported as such (same discipline as §1):** that the IFM operation **completed and the `ntds.dit` + `SYSTEM` hive were written to disk and exfiltrated**. The 4688 proves `ntdsutil` was *invoked* with these arguments; the loaded tiers carry no file-creation event for the output media and no egress evidence. So: **execution confirmed; output-media creation and exfiltration abstained.** (A targeted EID 11 search for the IFM output media returned only unrelated WinSxS servicing manifests on SRL-DMZFTP, `ntdsapi` component files, not the `ntds.dit`/`SYSTEM` output, so no file-creation corroboration exists on SRL-DC.)
+ 
+-**Why this is the stronger DC finding.** An IFM "create full" exports the entire `ntds.dit` — every domain account's hash — which is a superset of the single SAM hive targeted in §1. Two independent credential-access attempts against the DC (`ntdsutil` IFM and SAM-from-VSS), confirmed executed and attempted respectively, is what justifies treating the whole domain as compromised.
++**Why this is the stronger DC finding.** An IFM "create full" exports the entire `ntds.dit` (every domain account's hash), which is a superset of the single SAM hive targeted in §1. Two independent credential-access attempts against the DC (`ntdsutil` IFM and SAM-from-VSS), confirmed executed and attempted respectively, is what justifies treating the whole domain as compromised.
+ 
+ **Cypher:**
+ ```cypher
+@@ -48,51 +48,51 @@ WHERE toLower(e.commandLine) CONTAINS 'ntdsutil' AND toLower(e.commandLine) CONT
+ RETURN e.id, e.targetUser, e.parentImage, e.commandLine ORDER BY e.id;
+ ```
+ 
+-**Provenance note (honest disclosure).** This finding was surfaced by a **fresh autonomous agent run** during demo preparation — the original manual findings (`sans-dfir` FINDINGS.md §5) captured the SAM-from-VSS attempt but not the `ntdsutil` IFM dump. The agent's independent investigation **added a confirmed credential-access technique to the case**; we folded it in here rather than leaving the canon incomplete. The graph was unchanged by this run (read-only verified).
++**Provenance note (honest disclosure).** This finding was surfaced by a **fresh autonomous agent run** during demo preparation. The original manual findings (`sans-dfir` FINDINGS.md §5) captured the SAM-from-VSS attempt but not the `ntdsutil` IFM dump. The agent's independent investigation **added a confirmed credential-access technique to the case**; we folded it in here rather than leaving the canon incomplete. The graph was unchanged by this run (read-only verified).
+ 
+ ---
+ 
+-## 2. Error caught and corrected — the `SRL-FILE` persistence mis-attribution (F1)
++## 2. Error caught and corrected: the `SRL-FILE` persistence mis-attribution (F1)
+ 
+ **The error (first draft):** the agent initially listed `SRL-FILE` as a **fourth** host running the WMI `PerformanceMonitor` / `Install-Persistence` fileless persistence (alongside RD01/RD02/WKSTN05).
+ 
+-**Root cause:** a **string conflation**. `SRL-FILE`'s only `perfmon` references are the attacker's **staging directory** `C:\Windows\Temp\perfmon\` and the `n.ps1` payload path (the C2 stager). The substring "perfmon" / "PerformanceMonitor" was conflated with the **persistence `__EventFilter` name** `PerformanceMonitor` — two different things that share a string.
++**Root cause:** a **string conflation**. `SRL-FILE`'s only `perfmon` references are the attacker's **staging directory** `C:\Windows\Temp\perfmon\` and the `n.ps1` payload path (the C2 stager). The substring "perfmon" / "PerformanceMonitor" was conflated with the **persistence `__EventFilter` name** `PerformanceMonitor`, two different things that share a string.
+ 
+-**How it was caught — re-verification against raw artifacts with positive controls.** The agent re-checked `SRL-FILE`'s **raw** extracted EVTX (not the graph projection) for the persistence signatures and found **0** occurrences of `install-persistence` / `performancemonitor` / `systemperformancemonitor` / `eventfilter` / `eventconsumer`, and **0** WMI-Activity EID 5861 — while the **positive controls** (RD01/RD02/WKSTN05) hit in *both* raw and graph. A real signal hits both representations; a string artifact does not.
++**How it was caught: re-verification against raw artifacts with positive controls.** The agent re-checked `SRL-FILE`'s **raw** extracted EVTX (not the graph projection) for the persistence signatures and found **0** occurrences of `install-persistence` / `performancemonitor` / `systemperformancemonitor` / `eventfilter` / `eventconsumer`, and **0** WMI-Activity EID 5861, while the **positive controls** (RD01/RD02/WKSTN05) hit in *both* raw and graph. A real signal hits both representations; a string artifact does not.
+ 
+ **The correction:** persistence stands on **three** hosts (RD01/RD02/WKSTN05); `SRL-FILE` was used for the SAM grab (§1), **not** for persistence. The fix is recorded inline in the findings, not silently overwritten.
+ 
+-**Why it matters for scoring:** this is self-correction operating on *findings*, not just on tool-call errors — the agent disproved its own earlier claim by designing a raw-vs-graph control test. Traceability (`get_event` → source `.evtx`) is what made the raw cross-check possible.
++**Why it matters for scoring:** this is self-correction operating on *findings*, not just on tool-call errors. The agent disproved its own earlier claim by designing a raw-vs-graph control test. Traceability (`get_event` → source `.evtx`) is what made the raw cross-check possible.
+ 
+ ---
+ 
+-## 3. Error caught and corrected — the empty-hunt projection gap (0 → 26,372 Sysmon-projected SPAWNED)
++## 3. Error caught and corrected: the empty-hunt projection gap (0 → 26,372 Sysmon-projected SPAWNED)
+ 
+-**The error (first draft):** several relationship-based hunts (`sysmon_process_spawn`, `external_connections`, `lateral_logons`, `registry_persistence`, `sysmon_file_touch`) returned **0 rows**, because the ingest had **not** projected the rich Sysmon EID 1/3/11/12/13 + 4624 events into graph *relationships* — every `SPAWNED` edge then carried `source:'vol_pslist'` (596 such edges) and the Sysmon spawn hunt was empty. The first findings were therefore built by sweeping `WindowsEvent.commandLine` / `scriptBlock` text directly.
++**The error (first draft):** several relationship-based hunts (`sysmon_process_spawn`, `external_connections`, `lateral_logons`, `registry_persistence`, `sysmon_file_touch`) returned **0 rows**, because the ingest had **not** projected the rich Sysmon EID 1/3/11/12/13 + 4624 events into graph *relationships*. Every `SPAWNED` edge then carried `source:'vol_pslist'` (596 such edges) and the Sysmon spawn hunt was empty. The first findings were therefore built by sweeping `WindowsEvent.commandLine` / `scriptBlock` text directly.
+ 
+-**How it was caught:** an empty hunt over a graph that obviously *should* contain spawn data is a red flag, not a "no evil here" — the agent treated 0 rows as a coverage bug to investigate, not a finding.
++**How it was caught:** an empty hunt over a graph that obviously *should* contain spawn data is a red flag, not a "no evil here": the agent treated 0 rows as a coverage bug to investigate, not a finding.
+ 
+-**The correction:** a graph rebuild added five projections. `SPAWNED{source:'sysmon'}` went from **0 → 26,372** (verified live), and `CONNECTED_TO` (936), `LOGGED_IN` (392), `MODIFIED` (7,685), `CREATED_FILE` (19,109) appeared. Total `SPAWNED` across all sources is therefore **26,968** (26,372 Sysmon-projected + 596 pslist-derived). The previously-empty hunts now return data and **corroborate** the text-swept findings (e.g. `powershell.exe → csc.exe/cmd.exe/reg.exe` spawn chains on WKSTN05; the proxy `172.16.4.10` as the top `CONNECTED_TO` destination). The original conclusions were unchanged — the projection added corroboration, it didn't overturn attribution.
++**The correction:** a graph rebuild added five projections. `SPAWNED{source:'sysmon'}` went from **0 → 26,372** (verified live), and `CONNECTED_TO` (936), `LOGGED_IN` (392), `MODIFIED` (7,685), `CREATED_FILE` (19,109) appeared. Total `SPAWNED` across all sources is therefore **26,968** (26,372 Sysmon-projected + 596 pslist-derived). The previously-empty hunts now return data and **corroborate** the text-swept findings (e.g. `powershell.exe → csc.exe/cmd.exe/reg.exe` spawn chains on WKSTN05; the proxy `172.16.4.10` as the top `CONNECTED_TO` destination). The original conclusions were unchanged: the projection added corroboration, it didn't overturn attribution.
+ 
+ **Lesson encoded in the tooling:** an empty `run_hunt` result is reported plainly (`row_count: 0`) so the agent can distinguish "no evidence" from "no coverage" instead of mistaking a projection gap for an all-clear.
+ 
+ ---
+ 
+-## 4. Known limitation — EID 10 (Sysmon ProcessAccess) is contentless
++## 4. Known limitation: EID 10 (Sysmon ProcessAccess) is contentless
+ 
+-`SRL-WKSTN05` holds 5,774 EID 10 (ProcessAccess) events — the natural place to confirm **LSASS-targeting credential access**. But `SourceImage` / `TargetImage` / `GrantedAccess` / `CallTrace` were **not** parsed into node properties this load; every standard field is empty. **We therefore cannot confirm LSASS credential access from the graph**, and we say so — the determination would need the raw `Microsoft-Windows-Sysmon%4Operational.evtx`. (Credential theft is still established independently via §1, §1a, and `PWDumpX`.) This is an abstention forced by a parsing gap, reported rather than papered over.
++`SRL-WKSTN05` holds 5,774 EID 10 (ProcessAccess) events, the natural place to confirm **LSASS-targeting credential access**. But `SourceImage` / `TargetImage` / `GrantedAccess` / `CallTrace` were **not** parsed into node properties this load; every standard field is empty. **We therefore cannot confirm LSASS credential access from the graph**, and we say so. The determination would need the raw `Microsoft-Windows-Sysmon%4Operational.evtx`. (Credential theft is still established independently via §1, §1a, and `PWDumpX`.) This is an abstention forced by a parsing gap, reported rather than papered over.
+ 
+-Related, narrower gaps reported in the findings: 7045 service **binary paths** (`imagePath`) weren't parsed (so Metasploit/masquerading service identification rests on **name + timing**, an explicit *inference*, rated MEDIUM); and the C2 domain `squirreldirectory.com` does **not** appear in DNS telemetry (no Sysmon on the Empire hosts) — it's identified from decoded 4104 content, which is noted as *stronger* than a DNS lookup, not weaker.
++Related, narrower gaps reported in the findings: 7045 service **binary paths** (`imagePath`) weren't parsed (so Metasploit/masquerading service identification rests on **name + timing**, an explicit *inference*, rated MEDIUM); and the C2 domain `squirreldirectory.com` does **not** appear in DNS telemetry (no Sysmon on the Empire hosts). It's identified from decoded 4104 content, which is noted as *stronger* than a DNS lookup, not weaker.
+ 
+ ---
+ 
+-## 5. Known false-positive direction — the `query_graph` lexical guard over-rejects
++## 5. Known false-positive direction: the `query_graph` lexical guard over-rejects
+ 
+ The `query_graph` write-rejection pre-check is **intentionally biased toward false positives**: a benign read query that contains a write *keyword* as a substring or identifier (e.g. a property literally named `created`, or the token `set` inside a longer word the whole-word check still flags in edge cases) can be **refused** even though it only reads.
+ 
+-The most consequential case for an analyst: because the check scans **string literals** too (that is what catches write verbs smuggled into apoc procedure arguments), a legitimate search for **anti-forensics command lines is rejected** — e.g. `MATCH (p:Process) WHERE p.commandLine CONTAINS 'vssadmin delete shadows' RETURN p`, or literals containing `reg delete` / `Set-MpPreference`, are refused on the `DELETE`/`SET` tokens. The workaround is the constrained surface that bypasses the lexical guard by design: named hunts (`run_hunt`, e.g. `log_cleared`, `powershell_script`) and `get_event` traceback. This trade-off is deliberate and disclosed (also in the README's Known-limitations list), not an accident.
++The most consequential case for an analyst: because the check scans **string literals** too (that is what catches write verbs smuggled into apoc procedure arguments), a legitimate search for **anti-forensics command lines is rejected**: e.g. `MATCH (p:Process) WHERE p.commandLine CONTAINS 'vssadmin delete shadows' RETURN p`, or literals containing `reg delete` / `Set-MpPreference`, are refused on the `DELETE`/`SET` tokens. The workaround is the constrained surface that bypasses the lexical guard by design: named hunts (`run_hunt`, e.g. `log_cleared`, `powershell_script`) and `get_event` traceback. This trade-off is deliberate and disclosed (also in the README's Known-limitations list), not an accident.
+ 
+-**Why we accept that direction:** for a read-only forensic server, **over-rejection is the safe failure mode** — it can only block a query, never allow a write. And it is **backstopped**: the real guarantee is the Neo4j **READ transaction** (`default_access_mode=READ`), which rejects writes regardless of text, so the lexical guard is defense-in-depth, not the boundary. A 21-case bypass battery (`tests/test_mcp_server.py`) confirms no *write* slips through; the cost is the occasional false rejection of a read, which surfaces as a typed `write_rejected` error the agent can rephrase around.
++**Why we accept that direction:** for a read-only forensic server, **over-rejection is the safe failure mode**: it can only block a query, never allow a write. And it is **backstopped**: the real guarantee is the Neo4j **READ transaction** (`default_access_mode=READ`), which rejects writes regardless of text, so the lexical guard is defense-in-depth, not the boundary. A 21-case bypass battery (`tests/test_mcp_server.py`) confirms no *write* slips through; the cost is the occasional false rejection of a read, which surfaces as a typed `write_rejected` error the agent can rephrase around.
+ 
+ We also report the **benign-activity exclusions** the agent made on this case (to avoid false-positive *findings*): F-Response/`mnemosyne` IR tooling, defensive Sysmon-deployment download cradles on DMZFTP, `wevtutil im` Office manifest installs (not log clearing), and Chrome NXDOMAIN-probe random DNS (not DGA). Each was explicitly classified as **not attacker activity** rather than counted as evil.
+ 
+@@ -122,23 +122,23 @@ The throughline: **report what the evidence supports, label inferences as infere
+ This section reports a **separate, complementary** evaluation against an external,
+ community-standard dataset: **`vigia-cases`** by Anna Tchijova, the DFIR benchmark
+ the hackathon organiser pointed teams at as a scoring template. It measures the
+-agent's **forensic-intent adjudication** — given a curated artifact list, emit a
++agent's **forensic-intent adjudication**: given a curated artifact list, emit a
+ verdict (`MALICE` / `SUSPICION` / `BENIGN` / `ABSTAIN`), confidence, MITRE ATT&CK
+-TTPs, and IOCs — scored against the dataset's canonical `ground_truth.json` using
++TTPs, and IOCs, scored against the dataset's canonical `ground_truth.json` using
+ the metrics and thresholds in its `SCORING_GUIDE.md`.
+ 
+-### Scope — what this does and does not measure
++### Scope: what this does and does not measure
+ 
+ This benchmark exercises **verdict reasoning over Anna's hand-curated artifact
+ descriptors** (small self-contained JSON). It does **not** use our Neo4j
+ correlation graph or the `forensics-graph` MCP server at all, and it is **not** a
+-measure of cross-host / raw-scale evidence correlation — that capability is the
++measure of cross-host / raw-scale evidence correlation. That capability is the
+ subject of §§1–5 above and the `architecture.md` / `protocol-sift-integration.md`
+ docs. The two are evaluations of **different layers** of the same pipeline
+ (*correlation over raw evidence* vs. *intent adjudication over curated findings*);
+ **neither validates the other**, and we do not claim it does.
+ 
+-### Methodology — isolation and reproducibility
++### Methodology: isolation and reproducibility
+ 
+ The dataset stores each case's answer (`ground_truth.json`) in the same directory
+ as the agent input (`case.json`). The benchmark is only meaningful if the agent
+@@ -147,7 +147,7 @@ never sees the answer, so:
+ - **Input isolation.** Only the four `case.json` files were copied into an
+   eval-only working tree (`~/vigia-eval/inputs/`, outside this repo). The check
+   `find ~/vigia-eval/inputs -name 'ground_truth*' -o -name 'manifest*' -o -name
+-  'index*'` returns **nothing** — no answer file exists anywhere the agent can reach.
++  'index*'` returns **nothing**: no answer file exists anywhere the agent can reach.
+ - **Fresh, blind context per case.** Each verdict was produced by an independent
+   agent context pointed at **exactly one** `case.json` and forbidden from reading
+   any other file (no ground truth; no cross-case contamination).
+@@ -156,10 +156,10 @@ never sees the answer, so:
+   time and emits the report JSON. Same inputs → byte-identical report.
+ - **Archived outputs.** The raw per-case verdicts and the full report JSON are in
+   [`docs/benchmark/`](benchmark/). We do **not** vendor any `vigia-cases` content
+-  (it is Anna's separately-licensed dataset — see Attribution); only our own
++  (it is Anna's separately-licensed dataset, see Attribution); only our own
+   verdicts and scorer are committed.
+ 
+-### (a) Headline accuracy — `score_against` tier (VIGIA-REAL-001 / 002 / 007)
++### (a) Headline accuracy: `score_against` tier (VIGIA-REAL-001 / 002 / 007)
+ 
+ Only the `score_against` tier is valid for accuracy claims (per `SCORING_GUIDE.md`).
+ All three carry ground-truth verdict **MALICE**.
+@@ -196,18 +196,18 @@ Report-JSON summary (full file: [`docs/benchmark/vigia-report.json`](benchmark/v
+ 
+ > **Statistical-power caveat (read before citing the headline).** These
+ > numbers rest on very small n: verdict accuracy is computed over **3**
+-> `score_against` cases (achievable values: 0/33/67/100% — the ≥80% bar can
++> `score_against` cases (achievable values: 0/33/67/100%, the ≥80% bar can
+ > only be met by a perfect 3/3), and the FPR over a **single** FP-eligible
+ > case (mechanically 0% or 100%, no resolution between). The scorer itself
+ > discloses this basis in its output (`false_positive_basis`); we foreground
+ > it here so "100% / 0%" is read as *consistent with* good adjudication on
+ > this dataset, not as a precision claim.
+ 
+-**The verdicts are correct; the TTP labelling is the honest weak spot — we do not
++**The verdicts are correct; the TTP labelling is the honest weak spot. We do not
+ paper over it.** Two distinct effects drive the low coverage:
+ 
+ 1. **Granularity mismatch.** The agent emitted *parent* techniques where the
+-   dataset's canonical set uses *sub-techniques* — e.g. on 007 it produced `T1566`
++   dataset's canonical set uses *sub-techniques*, e.g. on 007 it produced `T1566`
+    (canonical `T1566.001`) and `T1585.002` (canonical `T1585.001`). Exact matching
+    scores these as misses; *family* matching (parent-technique level) recovers
+    them, which is why 002/007 jump to 60–67% under the lenient view.
+@@ -215,26 +215,26 @@ paper over it.** Two distinct effects drive the low coverage:
+    around credential interception (`T1557`, `T1539`, `T1592.001`) while the canonical
+    set emphasises discovery/scanning/input-capture/unsecured-credentials (`T1018`,
+    `T1056`, `T1552`, `T1595`). Both are defensible readings of the same artifacts,
+-   but they pick different ATT&CK IDs — so even family matching only recovers 1/6.
++   but they pick different ATT&CK IDs, so even family matching only recovers 1/6.
+ 
+ We report **exact coverage as the headline** because it mirrors `SCORING_GUIDE.md`'s
+ own worked example; family coverage is shown for transparency, not to inflate the
+ number. The takeaway: the agent's *adjudication* is reliable, its *canonical-TTP
+-alignment* is not — and it misses the dataset's ≥60% bar on both views.
++alignment* is not, and it misses the dataset's ≥60% bar on both views.
+ 
+ IOC recall was 12/18 (66.7%) aggregate. The misses are concentrated in 001, where
+ the agent recovered the email/hash/hostname IOCs but not several
+ registry/config-path/SID artifacts (`...\mirc.ini`, the Mr. Evil SID, a secondary
+-IP/MAC) — consistent with reasoning from the incident narrative rather than
++IP/MAC), consistent with reasoning from the incident narrative rather than
+ enumerating every low-level identifier.
+ 
+-### (b) Specificity gate — VIGIA-REAL-005 (reported separately, NOT in the headline)
++### (b) Specificity gate: VIGIA-REAL-005 (reported separately, NOT in the headline)
+ 
+ `VIGIA-REAL-005` ("Encrypt Them All", `build_and_test` tier) is the dataset's
+ **intentional false-positive gate**. Its ground truth is **SUSPICION**, not MALICE:
+ multiple encryption layers can be legitimate personal security. Per the guide, an
+ agent **passes only by emitting SUSPICION** (or abstaining appropriately) and
+-**fails automatically by over-calling MALICE** — no partial credit. It is reported
++**fails automatically by over-calling MALICE**, no partial credit. It is reported
+ here in isolation and is **never folded into the headline accuracy number**.
+ 
+ | Case | Our verdict | Truth | Result | Over-called MALICE? | Conf |
+@@ -242,9 +242,9 @@ here in isolation and is **never folded into the headline accuracy number**.
+ | VIGIA-REAL-005 | **SUSPICION** | SUSPICION | ✅ **PASS** | No | 0.60 |
+ 
+ The agent saw the concealment signals (AES + BitLocker + GPG layering, a BitLocker
+-volume named "R2D2") and explicitly weighed the **null hypothesis** — *"a
++volume named "R2D2") and explicitly weighed the **null hypothesis**, *"a
+ privacy- and security-conscious user employing entirely standard, lawful encryption
+-tools"* — then **declined to escalate to MALICE** because no artifact revealed the
++tools"*, then **declined to escalate to MALICE** because no artifact revealed the
+ encrypted content, a counterparty, malware, or any unauthorized act. It marked the
+ "communication with an external party" and "content is illicit" claims **INFERRED,
+ not CONFIRMED**.
+@@ -254,14 +254,14 @@ reported the credential-theft *attempt* at HIGH confidence but **abstained on th
+ success claim** for want of corroboration ("ATTEMPTED, not confirmed"). Here, it
+ reports *suspicion* of concealment but **declines the malice claim** for want of
+ content, counterparty, or victim. In both cases the agent refuses to convert an
+-anomaly into a confirmed accusation — which is exactly the reliability behaviour
++anomaly into a confirmed accusation, which is exactly the reliability behaviour
+ (abstain/under-claim when uncertain) that the dataset's gate, and DFIR-Metric,
+ reward over a confident wrong answer.
+ 
+ ### Training-data caveat (stated plainly, per the organiser's instruction)
+ 
+-These are **published** forensic cases. The two NIST cases especially —
+-**VIGIA-REAL-001** (NIST Hacking Case) and **VIGIA-REAL-002** (NIST Data Leakage) —
++These are **published** forensic cases. The two NIST cases especially,
++**VIGIA-REAL-001** (NIST Hacking Case) and **VIGIA-REAL-002** (NIST Data Leakage),
+ are among the most heavily documented DFIR exercises on the public internet, with
+ full walkthroughs and answer keys widely mirrored; VIGIA-REAL-007 (Nitroba) and
+ VIGIA-REAL-005 (Ali Hadi "Encrypt Them All") are likewise public challenges. A
+@@ -285,5 +285,5 @@ Analysis. SANS FIND EVIL Hackathon 2026. https://github.com/annatchijova/vigia-c
+ 
+ *Integrity note (returned upstream as friendly feedback):* `sha256sum --check
+ hashes.sha256` on the cloned dataset verifies **all** case and ground-truth files;
+-only `README.md` mismatches — a stale hash after a post-generation edit to the
++only `README.md` mismatches, a stale hash after a post-generation edit to the
+ file. Benign, but worth flagging to the author for an integrity-focused benchmark.
+diff --git a/docs/architecture.md b/docs/architecture.md
+index 766b72a..9e1b7e3 100644
+--- a/docs/architecture.md
++++ b/docs/architecture.md
+@@ -1,6 +1,6 @@
+ # Architecture
+ 
+-`neo-finds-evil` adds **one** component to a Protocol SIFT deployment: a read-only MCP server (`forensics-graph`) that exposes a Neo4j correlation graph to the same Claude Code agent that already drives Protocol SIFT's per-artifact tools. This document describes the components, the data/control flow, and — most importantly for the hackathon's scoring — exactly **which guardrails are architectural vs. prompt/config-based**.
++`neo-finds-evil` adds **one** component to a Protocol SIFT deployment: a read-only MCP server (`forensics-graph`) that exposes a Neo4j correlation graph to the same Claude Code agent that already drives Protocol SIFT's per-artifact tools. This document describes the components, the data/control flow, and (most importantly for the hackathon's scoring) exactly **which guardrails are architectural vs. prompt/config-based**.
+ 
+ The diagram referenced from the README lives alongside this file: **`docs/architecture.png`**.
+ 
+@@ -36,15 +36,15 @@ The diagram referenced from the README lives alongside this file: **`docs/archit
+                                        ingest      └──────────────────────────────────┘
+ ```
+ 
+-1. **Claude Code agent (under Protocol SIFT's `CLAUDE.md`).** The orchestrator. Protocol SIFT's global config sets its DFIR posture — read-only evidence handling, autonomous operation, a self-correction directive ("read stderr → hypothesize → correct → retry"), and a tool→skill routing table. This project does not change that posture; it adds tools the agent can call under it.
++1. **Claude Code agent (under Protocol SIFT's `CLAUDE.md`).** The orchestrator. Protocol SIFT's global config sets its DFIR posture: read-only evidence handling, autonomous operation, a self-correction directive ("read stderr → hypothesize → correct → retry"), and a tool→skill routing table. This project does not change that posture; it adds tools the agent can call under it.
+ 
+ 2. **Protocol SIFT's Bash/Skill tool layer (existing).** Pre-approved forensic CLIs plus five skill playbooks. Deep on a single artifact/host; **no cross-host or cross-time memory**. This is the capability this project complements.
+ 
+-3. **The `forensics-graph` MCP server (this project) — the ONLY MCP server.** A Python (`mcp`/FastMCP) server over **stdio**, registered project-scoped via `.mcp.json`. It exposes exactly five **read-only** tools (`list_hunts`, `run_hunt`, `get_host_summary`, `get_event`, `query_graph`). It is the agent's *only* window into the correlation graph, and it is read-only by construction (see Security boundaries).
++3. **The `forensics-graph` MCP server (this project), the ONLY MCP server.** A Python (`mcp`/FastMCP) server over **stdio**, registered project-scoped via `.mcp.json`. It exposes exactly five **read-only** tools (`list_hunts`, `run_hunt`, `get_host_summary`, `get_event`, `query_graph`). It is the agent's *only* window into the correlation graph, and it is read-only by construction (see Security boundaries).
+ 
+ 4. **The Neo4j correlation graph.** Neo4j 5.x Community. Hosts, processes, Windows events, files, registry keys, IP addresses, domains, services, and user accounts as nodes; `REPORTED`, `RAN_ON`, `SPAWNED`, `CONNECTED_TO`, `LOGGED_IN`, `MODIFIED`/`MODIFIED_REGISTRY`, `CREATED_FILE`, `RESOLVED_DNS`, `INSTALLED_SERVICE`, etc. as edges. Scale and provenance: `docs/evidence-dataset.md`.
+ 
+-5. **Read-only evidence mounts.** Disk images mounted `-o ro`; the Phase-1 ingest pipeline (`src/forensics/ingest/`) reads them, normalizes artifacts, and **writes the graph out-of-band** — the *agent* never has a write path to either evidence or graph.
++5. **Read-only evidence mounts.** Disk images mounted `-o ro`; the Phase-1 ingest pipeline (`src/forensics/ingest/`) reads them, normalizes artifacts, and **writes the graph out-of-band**. The *agent* never has a write path to either evidence or graph.
+ 
+ ---
+ 
+@@ -56,7 +56,7 @@ The diagram referenced from the README lives alongside this file: **`docs/archit
+ 
+ 1. The agent calls `list_hunts` / `run_hunt` (the safe, vetted default) or `query_graph` (guarded escape hatch) to reason across hosts and time.
+ 2. Each call runs in a Neo4j **READ transaction** with a server-side timeout and a mandatory `LIMIT`; every call appends a JSON line to the audit log.
+-3. A finding (a hunt row) carries an `event_id`; the agent calls `get_event(event_id)` to resolve it to the **source `WindowsEvent`** — including `channel`, i.e. the originating `.evtx` that a Protocol SIFT tool (EvtxECmd/plaso) would have parsed. **Traceability therefore spans both layers.**
++3. A finding (a hunt row) carries an `event_id`; the agent calls `get_event(event_id)` to resolve it to the **source `WindowsEvent`**, including `channel`, i.e. the originating `.evtx` that a Protocol SIFT tool (EvtxECmd/plaso) would have parsed. **Traceability therefore spans both layers.**
+ 4. On error, the tool returns a *typed* error with a remediation hint, and the agent self-corrects its next call.
+ 
+ ---
+@@ -65,23 +65,23 @@ The diagram referenced from the README lives alongside this file: **`docs/archit
+ 
+ The hackathon explicitly scores **architectural vs. prompt/config-based** guardrails. Here is the honest split for the whole deployment.
+ 
+-### Architectural (server-enforced — a property of the system, not a request to the agent)
++### Architectural (server-enforced, a property of the system, not a request to the agent)
+ 
+-- **No write tool exists.** The `forensics-graph` server registers only the five read tools. There is no MCP affordance — none — for the agent to `CREATE`/`MERGE`/`SET`/`DELETE`/`DROP` graph data or to ingest. The dangerous action is **not expressible** through the tool surface. *(Implemented in `src/forensics/mcp_server.py:build_server`.)*
+-- **`query_graph` runs in a READ transaction.** The free-form path opens its session with `default_access_mode=READ` and an explicit read transaction (`Neo4jClient.read_query`). The Neo4j driver/server **rejects any write regardless of the query text** — including a write that slips past the lexical pre-check (it surfaces as `write_rejected`). **This is the true boundary.**
+-- **Project-scoped registration (`.mcp.json`).** The server is registered per-project, not by mutating Protocol SIFT's global config — so neither framework's configuration clobbers the other, and the read-only server is the only graph access the project grants.
++- **No write tool exists.** The `forensics-graph` server registers only the five read tools. There is no MCP affordance (none) for the agent to `CREATE`/`MERGE`/`SET`/`DELETE`/`DROP` graph data or to ingest. The dangerous action is **not expressible** through the tool surface. *(Implemented in `src/forensics/mcp_server.py:build_server`.)*
++- **`query_graph` runs in a READ transaction.** The free-form path opens its session with `default_access_mode=READ` and an explicit read transaction (`Neo4jClient.read_query`). The Neo4j driver/server **rejects any write regardless of the query text**, including a write that slips past the lexical pre-check (it surfaces as `write_rejected`). **This is the true boundary.**
++- **Project-scoped registration (`.mcp.json`).** The server is registered per-project, not by mutating Protocol SIFT's global config, so neither framework's configuration clobbers the other, and the read-only server is the only graph access the project grants.
+ - **Write path is out-of-band.** Graph construction happens in the Phase-1 pipeline, never via an agent tool.
+ 
+ ### Defense-in-depth (still server-side, but a list rather than a property)
+ 
+-- **Lexical write/DDL pre-check.** Before execution, `query_graph` comment-strips and whole-word-matches `CREATE/MERGE/DELETE/SET/REMOVE/DROP/DETACH/FOREACH`, `LOAD CSV`, `CALL { … } IN TRANSACTIONS`, and apoc/db write procedures, and rejects them with a typed error. This **intentionally over-rejects** (a benign query containing a write keyword as a substring can be refused) — for a read-only forensic server, over-rejection is the safe direction, and it is *backstopped* by the READ transaction above. A 21-case bypass battery (`tests/test_mcp_server.py`) exercises lowercase/mixed-case/comment-hidden/after-`WITH`/`UNION`/`CALL`-subquery/apoc variants.
++- **Lexical write/DDL pre-check.** Before execution, `query_graph` comment-strips and whole-word-matches `CREATE/MERGE/DELETE/SET/REMOVE/DROP/DETACH/FOREACH`, `LOAD CSV`, `CALL { … } IN TRANSACTIONS`, and apoc/db write procedures, and rejects them with a typed error. This **intentionally over-rejects** (a benign query containing a write keyword as a substring can be refused). For a read-only forensic server, over-rejection is the safe direction, and it is *backstopped* by the READ transaction above. A 21-case bypass battery (`tests/test_mcp_server.py`) exercises lowercase/mixed-case/comment-hidden/after-`WITH`/`UNION`/`CALL`-subquery/apoc variants.
+ - **Resource bounds.** Server-side query timeout + mandatory `LIMIT` (appended when absent; rows also capped in Python for `UNION`/multi-part queries).
+ - **Audit.** Every tool call appends `{ts, tool, args, duration_ms, status, row_count}` to the audit log (a sanitized sample is in `docs/execution-logs/`).
+ 
+-### Prompt / config-based (inherited from Protocol SIFT — *not* a property of this server)
++### Prompt / config-based (inherited from Protocol SIFT, *not* a property of this server)
+ 
+-- **Operating posture** ("never modify evidence", read-only, court-defensible) is set by Protocol SIFT's global `CLAUDE.md` — instruction-level.
+-- **Tool access for the *forensic CLIs*** is governed by Protocol SIFT's `settings.json` allow/deny lists for the `Bash` tool — i.e. "run anything via Bash, minus a denylist." That is config-enforced, and it is precisely the gap this project's MCP layer closes for *graph* access: where SIFT's tool layer is "Bash gated by a denylist," ours is "a tool surface with no write verb in it."
++- **Operating posture** ("never modify evidence", read-only, court-defensible) is set by Protocol SIFT's global `CLAUDE.md`, instruction-level.
++- **Tool access for the *forensic CLIs*** is governed by Protocol SIFT's `settings.json` allow/deny lists for the `Bash` tool, i.e. "run anything via Bash, minus a denylist." That is config-enforced, and it is precisely the gap this project's MCP layer closes for *graph* access: where SIFT's tool layer is "Bash gated by a denylist," ours is "a tool surface with no write verb in it."
+ - **OS-level** evidence integrity rests on mounting images `-o ro`.
+ 
+ **Net:** the contribution that scores on the "architectural guardrails" axis is that **graph access is read-only because of what the tools *are*, not because of what the agent is *told***. The README's *The architectural read-only guardrail* section summarizes the three layers; the live write-rejection transcript is in `protocol-sift-integration.md` §4.0.
+diff --git a/docs/evidence-dataset.md b/docs/evidence-dataset.md
+index ddc46b3..ac22a45 100644
+--- a/docs/evidence-dataset.md
++++ b/docs/evidence-dataset.md
+@@ -2,7 +2,7 @@
+ 
+ ## What the agent was tested against
+ 
+-The correlation graph holds the **SRL-2018 / SHIELDBASE** enterprise-intrusion case — the **SANS FOR508** lab scenario ("Stark Research Labs", domain `SHIELDBASE.LAN`). It is a **7-host Windows enterprise** with both **disk and memory** evidence:
++The correlation graph holds the **SRL-2018 / SHIELDBASE** enterprise-intrusion case, the **SANS FOR508** lab scenario ("Stark Research Labs", domain `SHIELDBASE.LAN`). It is a **7-host Windows enterprise** with both **disk and memory** evidence:
+ 
+ | Host | Role | Evidence |
+ |---|---|---|
+@@ -14,24 +14,24 @@ The correlation graph holds the **SRL-2018 / SHIELDBASE** enterprise-intrusion c
+ | `SRL-WKSTN05` | Workstation (has Sysmon) | disk + memory |
+ | `SRL-DMZFTP` | Internet-facing DMZ FTP host | disk only (no memory image) |
+ 
+-**Artifact types ingested** (Phase-1 loaders, `src/forensics/ingest/loaders/`): Windows event logs (EVTX — Security 4624/4625/4688/4104, System 7045/104, Sysmon 1/3/11/12/13/22), Volatility memory artifacts (psscan/pslist/netscan/dlllist), shimcache, prefetch, MFT / path catalog, registry, and bulk_extractor output. Ingest tiers **triage + execution** are loaded for all 7 hosts.
++**Artifact types ingested** (Phase-1 loaders, `src/forensics/ingest/loaders/`): Windows event logs (EVTX: Security 4624/4625/4688/4104, System 7045/104, Sysmon 1/3/11/12/13/22), Volatility memory artifacts (psscan/pslist/netscan/dlllist), shimcache, prefetch, MFT / path catalog, registry, and bulk_extractor output. Ingest tiers **triage + execution** are loaded for all 7 hosts.
+ 
+ ## Source / provenance
+ 
+-The scenario is the **publicly published SANS FOR508 training case** — the *same* case that Protocol SIFT ships as its own demo (Stark Research Labs / SHIELDBASE, with responder accounts `rsydow` / `cbarton`). That overlap is deliberate and useful: this project's correlation layer is a **drop-in second opinion over Protocol SIFT's own demo data**, so a judge can watch Protocol SIFT analyze one host per-artifact while these MCP tools answer "what else touched that host across the other six."
++The scenario is the **publicly published SANS FOR508 training case**, the *same* case that Protocol SIFT ships as its own demo (Stark Research Labs / SHIELDBASE, with responder accounts `rsydow` / `cbarton`). That overlap is deliberate and useful: this project's correlation layer is a **drop-in second opinion over Protocol SIFT's own demo data**, so a judge can watch Protocol SIFT analyze one host per-artifact while these MCP tools answer "what else touched that host across the other six."
+ 
+-**Everything in the graph is a training-scenario artifact** — host names, account names (`spsql`, `rsydow`, `nfury`, …), IP addresses (`172.16.x.x`, `10.10.x.x`), and indicators (`squirreldirectory.com`, etc.) are all part of the published FOR508 scenario. **No real persons or real infrastructure are represented.**
++**Everything in the graph is a training-scenario artifact**: host names, account names (`spsql`, `rsydow`, `nfury`, …), IP addresses (`172.16.x.x`, `10.10.x.x`), and indicators (`squirreldirectory.com`, etc.) are all part of the published FOR508 scenario. **No real persons or real infrastructure are represented.**
+ 
+ ## How evidence becomes a graph (out-of-band extraction pipeline)
+ 
+-The graph judges restore is the output of a **Phase-1 extraction + ingest pipeline** (`src/forensics/ingest/`, console script `forensics-ingest`). It is documented here for depth, but it **runs out-of-band and is NOT part of the judge runbook** — judges restore the pre-built graph release asset and never run extraction. The pipeline:
++The graph judges restore is the output of a **Phase-1 extraction + ingest pipeline** (`src/forensics/ingest/`, console script `forensics-ingest`). It is documented here for depth, but it **runs out-of-band and is NOT part of the judge runbook**. Judges restore the pre-built graph release asset and never run extraction. The pipeline:
+ 
+ 1. **Acquire / mount** the disk and memory images per host, read-only.
+-2. **Extract** artifacts with standard DFIR tooling — **Plaso** (`log2timeline`/`psort`) for the EVTX super-timeline; **Volatility 3** (`psscan`/`pslist`/`netscan`/`dlllist`) for memory; plus shimcache, prefetch, MFT/path-catalog, registry, and `bulk_extractor` — emitting **normalized JSONL** per artifact type.
++2. **Extract** artifacts with standard DFIR tooling: **Plaso** (`log2timeline`/`psort`) for the EVTX super-timeline; **Volatility 3** (`psscan`/`pslist`/`netscan`/`dlllist`) for memory; plus shimcache, prefetch, MFT/path-catalog, registry, and `bulk_extractor`, emitting **normalized JSONL** per artifact type.
+ 3. **Ingest** the JSONL into Neo4j through per-artifact loaders, applying **load-time de-duplication** (e.g. high-volume 4624 logons collapse to unique `(user, ip, logonType)` tuples; Sysmon EID 3 connections to unique `(image, dstIP, dstPort)` tuples) so every *unique fact* is preserved without raw-event bloat.
+-4. **Project relationships** as a post-ingest pass — `SPAWNED`, `CONNECTED_TO`, `LOGGED_IN` (with `logonType`+`ip`), `MODIFIED`, `CREATED_FILE`/`DELETED_FILE` — turning flat events into the cross-host, cross-time graph the MCP tools query.
++4. **Project relationships** as a post-ingest pass: `SPAWNED`, `CONNECTED_TO`, `LOGGED_IN` (with `logonType`+`ip`), `MODIFIED`, `CREATED_FILE`/`DELETED_FILE`, turning flat events into the cross-host, cross-time graph the MCP tools query.
+ 
+-Crucially, **the agent has no tool that runs any of this** — graph construction is entirely out-of-band, which keeps the write path out of the agent (an architectural guardrail; see `architecture.md`). The agent only ever *reads* the finished graph.
++Crucially, **the agent has no tool that runs any of this**. Graph construction is entirely out-of-band, which keeps the write path out of the agent (an architectural guardrail; see `architecture.md`). The agent only ever *reads* the finished graph.
+ 
+ ## Graph scale
+ 
+@@ -81,12 +81,12 @@ Measured live against the restored graph (read-only counts). **~359,788 nodes /
+ 
+ A **hands-on-keyboard intrusion** across `SHIELDBASE.LAN`, running **2018-08-28 → 2018-09-07** and peaking **2018-08-31**, operating a **PowerShell Empire**-style toolkit. The cross-host chain the graph makes visible:
+ 
+-- **Initial access (probable):** a month-long **brute-force campaign against `SRL-DMZFTP`** — 20,531 × EID 4625 (2018-08-02 → 09-07), targeting accounts including `spsql`, `rsydow`, `nfury`, `administrator`. *Cross-host correlation showed the internal source IP `172.16.4.5` is the file server itself acting as a pivot — i.e. an internal host was already compromised, which reframes DMZ-FTP as plausibly a lateral target. (See `accuracy-report.md`.)*
+-- **C2:** external domain **`squirreldirectory.com`** (`/a` Empire stager, `/download/n.ps1` secondary payload) executed via in-memory `IEX … DownloadString(...)` cradles staging from a loopback listener — visible across `SRL-RD01`, `SRL-RD02`, `SRL-WKSTN05`, `SRL-FILE` in **decoded** PowerShell script blocks (EID 4104).
++- **Initial access (probable):** a month-long **brute-force campaign against `SRL-DMZFTP`**: 20,531 × EID 4625 (2018-08-02 → 09-07), targeting accounts including `spsql`, `rsydow`, `nfury`, `administrator`. *Cross-host correlation showed the internal source IP `172.16.4.5` is the file server itself acting as a pivot, i.e. an internal host was already compromised, which reframes DMZ-FTP as plausibly a lateral target. (See `accuracy-report.md`.)*
++- **C2:** external domain **`squirreldirectory.com`** (`/a` Empire stager, `/download/n.ps1` secondary payload) executed via in-memory `IEX … DownloadString(...)` cradles staging from a loopback listener, visible across `SRL-RD01`, `SRL-RD02`, `SRL-WKSTN05`, `SRL-FILE` in **decoded** PowerShell script blocks (EID 4104).
+ - **Fileless persistence:** WMI `__EventFilter`→`CommandLineEventConsumer` persistence named **`PerformanceMonitor` / `SystemPerformanceMonitor`**, on RD01/RD02/WKSTN05.
+-- **Credential theft:** **`PWDumpX.exe`** executed on `SRL-DMZFTP`; a **confirmed-executed `ntdsutil` IFM extraction of the full NTDS.dit** on `SRL-DC` (spsql, launched via WMI and WinRM); and an **attempted** DC **SAM-hive copy from a Volume Shadow Copy** issued from `SRL-FILE` — command provably executed, copy *success* not independently corroborated. The per-technique confirmed-vs-attempted calibration is the centerpiece of `accuracy-report.md`.
+-- **Lateral movement:** **PsExec** (`-i -s powershell.exe`, SYSTEM) and **service-based execution** — random-hex Metasploit-style services (`df0398a`, `8556ce1`) on `SRL-RD02`, `PSEXESVC` on `SRL-DMZFTP`.
++- **Credential theft:** **`PWDumpX.exe`** executed on `SRL-DMZFTP`; a **confirmed-executed `ntdsutil` IFM extraction of the full NTDS.dit** on `SRL-DC` (spsql, launched via WMI and WinRM); and an **attempted** DC **SAM-hive copy from a Volume Shadow Copy** issued from `SRL-FILE`: command provably executed, copy *success* not independently corroborated. The per-technique confirmed-vs-attempted calibration is the centerpiece of `accuracy-report.md`.
++- **Lateral movement:** **PsExec** (`-i -s powershell.exe`, SYSTEM) and **service-based execution**: random-hex Metasploit-style services (`df0398a`, `8556ce1`) on `SRL-RD02`, `PSEXESVC` on `SRL-DMZFTP`.
+ 
+-A separate **April–May 2018** cluster of masquerading/`LARIAT` services + log-clears **predates the intrusion by ~3 months** and is flagged as likely **lab/baseline/simulation** infrastructure, not the incident — documented to prevent false-positive attribution.
++A separate **April–May 2018** cluster of masquerading/`LARIAT` services + log-clears **predates the intrusion by ~3 months** and is flagged as likely **lab/baseline/simulation** infrastructure, not the incident, documented to prevent false-positive attribution.
+ 
+-This is precisely the kind of **cross-host, cross-time** reasoning that no single per-artifact tool output can express, and it is the analytical-reasoning demonstration for the submission. The honest accuracy self-assessment — confirmed findings, inferences, and **errors caught and corrected** — is in **`accuracy-report.md`**.
++This is precisely the kind of **cross-host, cross-time** reasoning that no single per-artifact tool output can express, and it is the analytical-reasoning demonstration for the submission. The honest accuracy self-assessment (confirmed findings, inferences, and **errors caught and corrected**) is in **`accuracy-report.md`**.
+diff --git a/docs/execution-logs/README.md b/docs/execution-logs/README.md
+index 97ac8ba..dd73e12 100644
+--- a/docs/execution-logs/README.md
++++ b/docs/execution-logs/README.md
+@@ -1,6 +1,6 @@
+ # Agent Execution Logs
+ 
+-This directory holds a **real, sanitized sample** of agent tool execution against the SRL-2018 graph, for the FIND EVIL! "Agent Execution Logs" requirement. It shows tool calls with timestamps, durations, and outcomes — and, crucially, a **self-correction** sequence.
++This directory holds a **real, sanitized sample** of agent tool execution against the SRL-2018 graph, for the FIND EVIL! "Agent Execution Logs" requirement. It shows tool calls with timestamps, durations, and outcomes, and, crucially, a **self-correction** sequence.
+ 
+ ## Primary artifact: `mcp-audit-sample.log`
+ 
+@@ -36,16 +36,16 @@ run_hunt / query_graph row  ──►  event_id (e.g. "SRL-DMZFTP:74648")
+ 
+ So any claim in the findings can be walked back: *audit line → `event_id` → `get_event` → source artifact*. The id scheme is `<HOSTNAME>:<record_number>`.
+ 
+-## What the sample shows — a real self-correction trace
++## What the sample shows: a real self-correction trace
+ 
+ The sample captures the **`spsql` cross-host trace** (the README's example question), and it is a textbook self-correction:
+ 
+-1. **`query_graph` … `row_count: 0`** — the agent's first query guessed the wrong property names (`target_user` / `subject_user` / `user`) and returned **zero rows**. The tool reports the empty result plainly — the agent treats `0` as "wrong query," not "no evil."
+-2. **`query_graph` … `row_count: 10`** then **`row_count: 15`** — two **schema-discovery** queries: list node labels + counts, then sample the property keys on nodes mentioning `spsql`. The agent learns the real property names are `targetUser` / `computer` / `eventId` / `logonType`.
+-3. **`query_graph` … `row_count: 36`** — the **corrected** query, now grouping `spsql` activity by host/event-id/logon-type across all hosts. (A parallel `UserAccount` probe returns `0`, correctly telling the agent `spsql` exists only as event-level data, not as an account node — another honest negative.)
+-4. **`query_graph` … `row_count: 1`** then **`get_event` "SRL-DMZFTP:74648" … `row_count: 1`** — the agent pulls one specific failed-logon `id`, then resolves it to the **source `WindowsEvent`** (channel = `Security.evtx`) to anchor the evidence trail.
++1. **`query_graph` … `row_count: 0`**: the agent's first query guessed the wrong property names (`target_user` / `subject_user` / `user`) and returned **zero rows**. The tool reports the empty result plainly. The agent treats `0` as "wrong query," not "no evil."
++2. **`query_graph` … `row_count: 10`** then **`row_count: 15`**, two **schema-discovery** queries: list node labels + counts, then sample the property keys on nodes mentioning `spsql`. The agent learns the real property names are `targetUser` / `computer` / `eventId` / `logonType`.
++3. **`query_graph` … `row_count: 36`**: the **corrected** query, now grouping `spsql` activity by host/event-id/logon-type across all hosts. (A parallel `UserAccount` probe returns `0`, correctly telling the agent `spsql` exists only as event-level data, not as an account node, another honest negative.)
++4. **`query_graph` … `row_count: 1`** then **`get_event` "SRL-DMZFTP:74648" … `row_count: 1`**: the agent pulls one specific failed-logon `id`, then resolves it to the **source `WindowsEvent`** (channel = `Security.evtx`) to anchor the evidence trail.
+ 
+-That progression — **empty result → schema discovery → corrected query → traceable source event** — is the self-correction demonstration, recorded as it actually happened.
++That progression (**empty result → schema discovery → corrected query → traceable source event**) is the self-correction demonstration, recorded as it actually happened.
+ 
+ ### Guardrail line (documented elsewhere, same log format)
+ 
+@@ -55,7 +55,7 @@ A prior call in the same audit format recorded the read-only guardrail firing wh
+ {"ts":"2026-06-05T17:49:58.881304+00:00","tool":"query_graph","args":{"cypher":"MATCH (n) DETACH DELETE n","limit_enforced":100},"duration_ms":0.1,"status":"write_rejected","row_count":null}
+ ```
+ 
+-`status: write_rejected`, `duration_ms: 0.1` — the write never reached execution.
++`status: write_rejected`, `duration_ms: 0.1`. The write never reached execution.
+ 
+ ## Claude Code session transcripts (timestamps + token usage)
+ 
+@@ -65,7 +65,7 @@ Claude Code also records full session transcripts as JSON-lines, one file per se
+ ~/.claude/projects/<project-slug>/<session-uuid>.jsonl
+ ```
+ 
+-Each assistant message carries a `timestamp` and a `usage` block with `input_tokens` / `output_tokens` (plus cache counters) — so per-turn latency and token cost are recoverable. Structure (sanitized; content elided):
++Each assistant message carries a `timestamp` and a `usage` block with `input_tokens` / `output_tokens` (plus cache counters), so per-turn latency and token cost are recoverable. Structure (sanitized; content elided):
+ 
+ ```json
+ {"type":"assistant","timestamp":"<ISO-8601>",
+@@ -73,4 +73,4 @@ Each assistant message carries a `timestamp` and a `usage` block with `input_tok
+             "usage":{"input_tokens":<n>,"output_tokens":<n>,"cache_read_input_tokens":<n>}}}
+ ```
+ 
+-**These transcripts are intentionally NOT bundled in this repo.** A full session transcript contains the entire conversation, file contents, and agent memory — i.e. material that has not been through the redaction sweep that gates this package. The MCP **audit log** above is the purpose-built, low-sensitivity execution record and is the artifact we publish. If per-token execution accounting is needed for judging, it can be exported from the transcript path above on the operator's machine.
++**These transcripts are intentionally NOT bundled in this repo.** A full session transcript contains the entire conversation, file contents, and agent memory, i.e. material that has not been through the redaction sweep that gates this package. The MCP **audit log** above is the purpose-built, low-sensitivity execution record and is the artifact we publish. If per-token execution accounting is needed for judging, it can be exported from the transcript path above on the operator's machine.
+diff --git a/docs/protocol-sift-integration.md b/docs/protocol-sift-integration.md
+index 7298ee8..c73a48f 100644
+--- a/docs/protocol-sift-integration.md
++++ b/docs/protocol-sift-integration.md
+@@ -1,4 +1,4 @@
+-# Protocol SIFT — Recon & Integration Plan
++# Protocol SIFT: Recon & Integration Plan
+ 
+ **Status:** recon + planning only. No code changes to sans-find-evil yet. No system-wide install performed (see §0).
+ **Author:** generated 2026-06-05 for the SANS "FIND EVIL!" hackathon (findevil.devpost.com, deadline June 15).
+@@ -10,21 +10,21 @@
+ 
+ **What Protocol SIFT actually is:** a **Claude Code configuration bundle** for the SANS SIFT Workstation, authored by Rob Lee (SANS / teamdfir). It is **not** an MCP server, has **no database, no graph, and no cross-host correlation**. "Connecting AI agents to forensic tools" is achieved purely by (a) a global `settings.json` that pre-approves ~80 forensic CLIs for the `Bash` tool, and (b) five **Skills** (prompt playbooks) that tell the agent how to drive Volatility 3 / Plaso / Sleuth Kit / EZ Tools / YARA. Everything installs into `~/.claude/`.
+ 
+-**Install decision: did NOT run the official installer against our machine.** Step 1 inspection showed `install.sh` **overwrites our global Claude Code config** — it copies the repo's `global/{CLAUDE.md,settings.json,settings.local.json}` over `~/.claude/` (it backs them up to `.bak-<ts>` first, lines 81–91 of `install.sh`). That is a hard conflict with our setup (our permissions, hooks, and memory live in `~/.claude/`), and SIFT's `settings.json` would also block `curl`/`wget`/`WebFetch` and scope all writes to `./analysis|reports|exports`, breaking our dev workflow. Per the task's "STOP if it touches our Claude Code config" rule, I instead:
++**Install decision: did NOT run the official installer against our machine.** Step 1 inspection showed `install.sh` **overwrites our global Claude Code config**: it copies the repo's `global/{CLAUDE.md,settings.json,settings.local.json}` over `~/.claude/` (it backs them up to `.bak-<ts>` first, lines 81–91 of `install.sh`). That is a hard conflict with our setup (our permissions, hooks, and memory live in `~/.claude/`), and SIFT's `settings.json` would also block `curl`/`wget`/`WebFetch` and scope all writes to `./analysis|reports|exports`, breaking our dev workflow. Per the task's "STOP if it touches our Claude Code config" rule, I instead:
+ - cloned the repo read-only and inspected every file, and
+-- ran the installer **sandboxed** under `HOME=/tmp/sift-home` — it succeeded cleanly (exit 0), proving the entire "install" is just file copies into `~/.claude` with **no MCP registration, no services, no changes outside `~/.claude`**.
++- ran the installer **sandboxed** under `HOME=/tmp/sift-home`, it succeeded cleanly (exit 0), proving the entire "install" is just file copies into `~/.claude` with **no MCP registration, no services, no changes outside `~/.claude`**.
+ 
+-**No conflict** with our `neo4j-forensics` container, our `.venv`, or our repo files — SIFT touches none of them (it has no database and writes only to `~/.claude`). The only conflict is the global-config overwrite, which the sandbox avoided.
++**No conflict** with our `neo4j-forensics` container, our `.venv`, or our repo files. SIFT touches none of them (it has no database and writes only to `~/.claude`). The only conflict is the global-config overwrite, which the sandbox avoided.
+ 
+-**Surprising alignment:** Protocol SIFT's shipped demo case **is the SRL / SHIELDBASE FOR508 scenario** — Stark Research Labs, CRIMSON OSPREY APT, `rd01` as primary compromise host, responders **Roger Sydow** and **Clint Barton** (= our `rsydow` / `cbarton`). That is the *exact* evidence our Neo4j graph already ingested and correlated (case `srl-2018`). Our correlation layer is a drop-in second opinion over SIFT's own demo data.
++**Surprising alignment:** Protocol SIFT's shipped demo case **is the SRL / SHIELDBASE FOR508 scenario**: Stark Research Labs, CRIMSON OSPREY APT, `rd01` as primary compromise host, responders **Roger Sydow** and **Clint Barton** (= our `rsydow` / `cbarton`). That is the *exact* evidence our Neo4j graph already ingested and correlated (case `srl-2018`). Our correlation layer is a drop-in second opinion over SIFT's own demo data.
+ 
+ ---
+ 
+ ## 1. Plain-language summary (for README / Devpost)
+ 
+-> **Protocol SIFT** is SANS's proof-of-concept for autonomous DFIR: it turns a stock SANS SIFT Workstation into an AI-driven forensics operator by configuring Claude Code with (1) a DFIR "system prompt" that sets a strict read-only, court-defensible operating posture, (2) a permission policy that pre-authorizes the SIFT toolset so the agent can run Volatility, Plaso, Sleuth Kit, EZ Tools, and YARA without pausing, and (3) skill files that encode expert CLI usage for each tool. The agent investigates **one artifact / one tool at a time** — dump a process, parse an event log, build a timeline — and writes findings to a per-case directory. It is brilliant at *depth on a single artifact* but has **no memory across hosts or artifacts**: each tool invocation is an island.
++> **Protocol SIFT** is SANS's proof-of-concept for autonomous DFIR: it turns a stock SANS SIFT Workstation into an AI-driven forensics operator by configuring Claude Code with (1) a DFIR "system prompt" that sets a strict read-only, court-defensible operating posture, (2) a permission policy that pre-authorizes the SIFT toolset so the agent can run Volatility, Plaso, Sleuth Kit, EZ Tools, and YARA without pausing, and (3) skill files that encode expert CLI usage for each tool. The agent investigates **one artifact / one tool at a time** (dump a process, parse an event log, build a timeline) and writes findings to a per-case directory. It is brilliant at *depth on a single artifact* but has **no memory across hosts or artifacts**: each tool invocation is an island.
+ 
+-**sans-find-evil adds the missing layer:** a Neo4j **correlation graph** of every artifact across every host and the whole timeline, exposed to the *same* agent as read-only query/hunt tools — so the agent can reason **across hosts and across time** (lateral movement, cross-host tool reuse, credential-theft chains), not just within one tool's output.
++**sans-find-evil adds the missing layer:** a Neo4j **correlation graph** of every artifact across every host and the whole timeline, exposed to the *same* agent as read-only query/hunt tools, so the agent can reason **across hosts and across time** (lateral movement, cross-host tool reuse, credential-theft chains), not just within one tool's output.
+ 
+ ---
+ 
+@@ -46,24 +46,24 @@
+ | `case-templates/CLAUDE.md` | `~/.claude/case-templates/CLAUDE.md` | Per-case project prompt; ships pre-filled with the **SRL FOR508** scenario. |
+ | `analysis-scripts/generate_pdf_report.py` | `~/.claude/analysis-scripts/` | WeasyPrint HTML→PDF report generator. |
+ 
+-Skills total ~2,138 lines — substantial, well-written CLI playbooks.
++Skills total ~2,138 lines: substantial, well-written CLI playbooks.
+ 
+ ### 2.2 How it's invoked
+-The user `cd`s into a case dir (`/cases/<CASE>/` with `{analysis,exports,reports}` subdirs and a project `CLAUDE.md`), mounts evidence **read-only** (`ewfmount` → `mount -o ro,loop,offset=…`), and runs `claude`. The global + project CLAUDE.md load automatically; Skills load on demand via the routing table. There is **no server to start** — the "tools" are just shell CLIs the permission policy allows.
++The user `cd`s into a case dir (`/cases/<CASE>/` with `{analysis,exports,reports}` subdirs and a project `CLAUDE.md`), mounts evidence **read-only** (`ewfmount` → `mount -o ro,loop,offset=…`), and runs `claude`. The global + project CLAUDE.md load automatically; Skills load on demand via the routing table. There is **no server to start**: the "tools" are just shell CLIs the permission policy allows.
+ 
+ ### 2.3 Where the security boundary actually is (critical for scoring)
+ SIFT's guardrails are **prompt + config + OS**, not per-tool architectural:
+ 
+-- **Prompt (CLAUDE.md):** "Never modify files in `/cases/`, `/mnt/`, `/media/`" — instruction only.
+-- **Config (`settings.json` `permissions`):** `allow` includes **`Bash(*)`** (i.e. *any* shell command) plus an explicit forensic-CLI allowlist; `deny` blocks `rm -rf`, `dd`, `wget`, `curl`, `ssh`, `WebFetch`; `Write`/`Edit` are scoped to `./analysis|reports|exports`; `defaultMode: acceptEdits`. So tool **access is unrestricted Bash gated by a denylist** — the harness enforces it, but it is a *list*, not a property of the tools themselves.
++- **Prompt (CLAUDE.md):** "Never modify files in `/cases/`, `/mnt/`, `/media/`", instruction only.
++- **Config (`settings.json` `permissions`):** `allow` includes **`Bash(*)`** (i.e. *any* shell command) plus an explicit forensic-CLI allowlist; `deny` blocks `rm -rf`, `dd`, `wget`, `curl`, `ssh`, `WebFetch`; `Write`/`Edit` are scoped to `./analysis|reports|exports`; `defaultMode: acceptEdits`. So tool **access is unrestricted Bash gated by a denylist**: the harness enforces it, but it is a *list*, not a property of the tools themselves.
+ - **OS:** evidence integrity ultimately rests on mounting images `-o ro` and a denylist on `dd`/`rm`.
+ 
+ **Implication for the hackathon's "architectural vs prompt-based guardrails" score:** SIFT's evidence-write protection is config/OS-enforced, but its *tool layer* is "run anything via Bash, minus a denylist." There is no layer where a tool *cannot* perform a dangerous action because the action isn't expressible. **That is exactly the gap our MCP layer fills** (§3, §4).
+ 
+ ### 2.4 Overlap with what we already built
+-- **Extraction overlap:** SIFT drives Volatility 3 (psscan/pslist/netscan), Plaso (`log2timeline`/`psort`), TSK, EZ Tools — the same tools our Phase-1 extraction pipeline runs to populate the graph. Difference: SIFT runs them **interactively, per-artifact, per-host**; we run them **batched → normalized → graph**.
++- **Extraction overlap:** SIFT drives Volatility 3 (psscan/pslist/netscan), Plaso (`log2timeline`/`psort`), TSK, EZ Tools: the same tools our Phase-1 extraction pipeline runs to populate the graph. Difference: SIFT runs them **interactively, per-artifact, per-host**; we run them **batched → normalized → graph**.
+ - **Correlation overlap: none.** SIFT has zero graph/database/cross-host capability. This is our entire contribution.
+-- Several SIFT-wrapped CLIs are already present on *this* box (`log2timeline.py`, `fls`, `icat`, `bulk_extractor`, `exiftool`, `foremost`, `strings`, `file`, `md5sum`) — so a subset of Protocol SIFT runs here for real; Volatility 3 and `yara` are absent (different install paths). Smoke test (`file`/`md5sum`/`strings` on a throwaway file) passed.
++- Several SIFT-wrapped CLIs are already present on *this* box (`log2timeline.py`, `fls`, `icat`, `bulk_extractor`, `exiftool`, `foremost`, `strings`, `file`, `md5sum`), so a subset of Protocol SIFT runs here for real; Volatility 3 and `yara` are absent (different install paths). Smoke test (`file`/`md5sum`/`strings` on a throwaway file) passed.
+ 
+ ---
+ 
+@@ -87,20 +87,20 @@ SIFT's guardrails are **prompt + config + OS**, not per-tool architectural:
+ ```
+ 
+ **The thesis (refined against what Step 3 found):**
+-> Protocol SIFT gives the agent **per-artifact tool access** — it can run a forensic tool against a single image and read that one output. Its weakness is that every tool call is an island: no memory across hosts, artifacts, or time. **sans-find-evil adds the correlation layer**: a Neo4j graph of *all* artifacts across *all* hosts (built by our extraction + projection pipeline), exposed to the *same* agent through an **additional, read-only MCP server**. The agent gains hunts and graph queries that reason across hosts and time — lateral movement, cross-host tool reuse, credential-theft chains — which no single SIFT tool output can show.
++> Protocol SIFT gives the agent **per-artifact tool access**: it can run a forensic tool against a single image and read that one output. Its weakness is that every tool call is an island: no memory across hosts, artifacts, or time. **sans-find-evil adds the correlation layer**: a Neo4j graph of *all* artifacts across *all* hosts (built by our extraction + projection pipeline), exposed to the *same* agent through an **additional, read-only MCP server**. The agent gains hunts and graph queries that reason across hosts and time (lateral movement, cross-host tool reuse, credential-theft chains) which no single SIFT tool output can show.
+ 
+ **What changes the framing (be honest in the write-up):**
+ 1. SIFT is **not** itself MCP-based, so "extends Protocol SIFT" means *we add the MCP layer SIFT lacks and run it alongside SIFT's Skills/permissions*, not "we plug into SIFT's MCP." Our architecture (agent → MCP → [SIFT tools] + [Neo4j tools]) is the **target** state; SIFT today is agent → Bash/Skills. We contribute the MCP correlation server and propose that SIFT's tool access *could* also be MCP-wrapped later.
+-2. Our second, stronger pitch — **architectural guardrails**: where SIFT's graph-of-evidence would be "Bash + denylist," our Neo4j access is an MCP server that exposes **only read tools** → the agent *cannot* mutate the graph because no write tool exists. That is a genuinely architectural guardrail, and it's exactly the axis the hackathon scores.
+-3. **Same evidence:** SIFT's demo *is* SRL/SHIELDBASE; our graph already holds the correlated `srl-2018` analysis of it. The demo can show SIFT analyzing `rd01` per-artifact while our MCP tools answer "what else touched `rd01` across the other 6 hosts" — a clean, literal extension on identical data.
++2. Our second, stronger pitch, **architectural guardrails**: where SIFT's graph-of-evidence would be "Bash + denylist," our Neo4j access is an MCP server that exposes **only read tools** → the agent *cannot* mutate the graph because no write tool exists. That is a genuinely architectural guardrail, and it's exactly the axis the hackathon scores.
++3. **Same evidence:** SIFT's demo *is* SRL/SHIELDBASE; our graph already holds the correlated `srl-2018` analysis of it. The demo can show SIFT analyzing `rd01` per-artifact while our MCP tools answer "what else touched `rd01` across the other 6 hosts", a clean, literal extension on identical data.
+ 
+ ---
+ 
+-## 4. Build plan — the Neo4j MCP server
++## 4. Build plan: the Neo4j MCP server
+ 
+-A new component (greenfield — our repo has no MCP code today). Python, using the official **`mcp` SDK / FastMCP**, **stdio** transport, registered with Claude Code via `claude mcp add` or a `mcpServers` block in `settings.json` (merged into — not overwriting — SIFT's settings; see §6). Wraps existing code so behavior matches the CLI.
++A new component (greenfield, our repo has no MCP code today). Python, using the official **`mcp` SDK / FastMCP**, **stdio** transport, registered with Claude Code via `claude mcp add` or a `mcpServers` block in `settings.json` (merged into, not overwriting, SIFT's settings; see §6). Wraps existing code so behavior matches the CLI.
+ 
+-### 4.0 BUILD STATUS — ✅ DELIVERED (v1)
++### 4.0 BUILD STATUS: ✅ DELIVERED (v1)
+ 
+ Implemented in **`src/forensics/mcp_server.py`** (console script `forensics-mcp`), registered project-scoped via **`.mcp.json`** at the repo root. `mcp>=1.2` added to `pyproject.toml`. **50 unit tests** (`tests/test_mcp_server.py`), full suite **173 passed, 5 skipped** (the two live READ-backstop regression tests skip cleanly when no graph is reachable), ruff clean. Read-only verified by a live stdio smoke test (graph byte-identical: 359,788 nodes before and after).
+ 
+@@ -111,10 +111,10 @@ Implemented in **`src/forensics/mcp_server.py`** (console script `forensics-mcp`
+ | `list_hunts` | `() ->` | `[{name, category, description}]` for all 31 hunts (categories overlaid on `hunt.py:QUERIES`). |
+ | `run_hunt` | `(name: str, limit: int = 100) ->` | `{hunt, rows, row_count, truncated, duration_ms}`. Validates `name`; rejects case-param hunts; read-tx + server timeout; rows capped. |
+ | `get_host_summary` | `(hostname: str) ->` | `{hostname, total_events, process_count, events_by_event_id[], relationship_counts{spawned_sysmon,connected_to,modified_registry,created_file,logged_in}}`. Validates host exists (else lists hosts). |
+-| `get_event` | `(event_id: str) ->` | `{event_id, event{…all props…, host}}` — **traceability primitive**. Id scheme is `<HOSTNAME>:<record_number>` (e.g. `SRL-DC:2952977`). |
++| `get_event` | `(event_id: str) ->` | `{event_id, event{…all props…, host}}`, **traceability primitive**. Id scheme is `<HOSTNAME>:<record_number>` (e.g. `SRL-DC:2952977`). |
+ | `query_graph` | `(cypher: str, params=None, limit_enforced: int = 100) ->` | `{rows, row_count, truncated, limit_applied}` or a typed error. Guarded escape hatch (§4.2). |
+ 
+-**Enforcement implemented:** `query_graph` runs via a new `Neo4jClient.read_query()` that opens the session with `default_access_mode=READ` and an explicit `begin_transaction(timeout=stats_query_timeout())` — writes are rejected by the **server** regardless of text. On top of that, a lexical `reject_write()` pre-check (comment-stripped, whole-word) blocks `CREATE/MERGE/DELETE/SET/REMOVE/DROP/DETACH/FOREACH`, `LOAD CSV`, `CALL {…} IN TRANSACTIONS`, and apoc/db write procedures. `enforce_limit()` appends `LIMIT 100` when absent and rows are capped in Python regardless. The bypass battery (`test_query_graph_write_rejection_bypass_battery`, 21 cases incl. lowercase/mixed-case/comment-hidden/after-WITH/UNION/CALL-subquery/apoc) **all reject**.
++**Enforcement implemented:** `query_graph` runs via a new `Neo4jClient.read_query()` that opens the session with `default_access_mode=READ` and an explicit `begin_transaction(timeout=stats_query_timeout())`. Writes are rejected by the **server** regardless of text. On top of that, a lexical `reject_write()` pre-check (comment-stripped, whole-word) blocks `CREATE/MERGE/DELETE/SET/REMOVE/DROP/DETACH/FOREACH`, `LOAD CSV`, `CALL {…} IN TRANSACTIONS`, and apoc/db write procedures. `enforce_limit()` appends `LIMIT 100` when absent and rows are capped in Python regardless. The bypass battery (`test_query_graph_write_rejection_bypass_battery`, 21 cases incl. lowercase/mixed-case/comment-hidden/after-WITH/UNION/CALL-subquery/apoc) **all reject**.
+ 
+ **Registration (judge-facing):**
+ ```bash
+@@ -128,7 +128,7 @@ claude            # the agent now has list_hunts / run_hunt / get_host_summary /
+ ```
+ `.mcp.json` sets `command: uv, args: ["run","--quiet","forensics-mcp"]` and the `NEO4J_*` env (local default creds) + `FORENSICS_MCP_AUDIT=investigation/mcp-audit.log`.
+ 
+-**Guardrail evidence — live write-rejection transcript** (smoke test, `query_graph` with `MATCH (n) DETACH DELETE n`):
++**Guardrail evidence: live write-rejection transcript** (smoke test, `query_graph` with `MATCH (n) DETACH DELETE n`):
+ ```json
+ {
+   "error": "write operations are not available on this server: write/DDL keyword 'DETACH' is not permitted. This is a read-only forensic graph — use a MATCH/RETURN query, or call run_hunt() for a vetted query.",
+@@ -140,23 +140,23 @@ Audit log line for that same call (`investigation/mcp-audit.log`):
+ ```json
+ {"ts":"2026-06-05T17:49:58.881304+00:00","tool":"query_graph","args":{"cypher":"MATCH (n) DETACH DELETE n","limit_enforced":100},"duration_ms":0.1,"status":"write_rejected","row_count":null}
+ ```
+-A real `run_hunt('credential_tooling')` over stdio returned `pwdumpx.exe` on `SRL-DMZFTP` (matches FINDINGS); `get_host_summary('SRL-DC')` returned `total_events=137814, process_count=123, 4688=135581` — exact FINDINGS counts.
++A real `run_hunt('credential_tooling')` over stdio returned `pwdumpx.exe` on `SRL-DMZFTP` (matches FINDINGS); `get_host_summary('SRL-DC')` returned `total_events=137814, process_count=123, 4688=135581`, exact FINDINGS counts.
+ 
+-### 4.1 Tool list (ALL read-only) — as proposed, delivered above
++### 4.1 Tool list (ALL read-only): as proposed, delivered above
+ 
+ | Tool | Signature | Wraps | Notes |
+ |---|---|---|---|
+ | `list_hunts` | `() -> [{name, description, tier}]` | `hunt.py:QUERIES` keys + `hunt_deps.py` | Discoverability; 31 hunts today. |
+-| `run_hunt` | `(name: str, params?: dict) -> {rows, parameters}` | `hunt.py:run_hunt()` (line 417) | Named, vetted, parameterized queries — the safe default. |
++| `run_hunt` | `(name: str, params?: dict) -> {rows, parameters}` | `hunt.py:run_hunt()` (line 417) | Named, vetted, parameterized queries, the safe default. |
+ | `query_graph` | `(cypher: str) -> {rows}` | `Neo4jClient.query(timeout=)` (neo4j_client.py:144) | **Write-rejected** (see §4.2), server-side timeout, mandatory `LIMIT`. For ad-hoc reasoning. |
+ | `get_host_summary` | `(hostname: str) -> {events_by_id, processes, edges, …}` | anchored counts à la `coverage.py` | Per-host orientation; Host-anchored, never stacked OPTIONAL MATCH (per commit cae2671). |
+-| `get_event` | `(id: str) -> {eventId, channel, timestamp, image, commandLine, scriptBlock, host}` | direct `MATCH (e:WindowsEvent {id})` | **Artifact traceability** (see §5.2) — maps a finding back to the source EVTX/artifact. |
++| `get_event` | `(id: str) -> {eventId, channel, timestamp, image, commandLine, scriptBlock, host}` | direct `MATCH (e:WindowsEvent {id})` | **Artifact traceability** (see §5.2), maps a finding back to the source EVTX/artifact. |
+ | `get_timeline` *(opt)* | `(hostname, start, end) -> [events]` | FILETIME-converted window, anchored + LIMIT | Cross-time reasoning within a host. |
+ 
+-### 4.2 How read-only is ENFORCED — architecturally, in three layers
+-1. **No write tool exists.** The server registers only the read tools above. The agent has *no* MCP affordance to `CREATE`/`MERGE`/`SET`/`DELETE`. This is the primary, architectural guarantee — the property the hackathon rewards.
++### 4.2 How read-only is ENFORCED: architecturally, in three layers
++1. **No write tool exists.** The server registers only the read tools above. The agent has *no* MCP affordance to `CREATE`/`MERGE`/`SET`/`DELETE`. This is the primary, architectural guarantee, the property the hackathon rewards.
+ 2. **`query_graph` rejects writes.** Before execution, reject any statement whose (comment-stripped, lowercased) token stream contains write clauses (`create`, `merge`, `set`, `delete`, `remove`, `drop`, `detach`, `load csv`, `call …` procedures that write, `foreach`); additionally run inside a Neo4j **read transaction** (`session.execute_read`) so the driver itself refuses writes.
+-3. **Server-side resource bounds.** Wrap every query in `neo4j.Query(text, timeout=…)` using `stats_query_timeout()` (neo4j_client.py:23) — the *server* aborts long queries; reuse `query_guarded()` (line 158) so a bad query returns a structured error, never hangs. Enforce a default `LIMIT` and reject unbounded scans. (Defense-in-depth option: a dedicated read-only Neo4j role — limited on Community single-DB, so the tool layer is the real boundary.)
++3. **Server-side resource bounds.** Wrap every query in `neo4j.Query(text, timeout=…)` using `stats_query_timeout()` (neo4j_client.py:23), the *server* aborts long queries; reuse `query_guarded()` (line 158) so a bad query returns a structured error, never hangs. Enforce a default `LIMIT` and reject unbounded scans. (Defense-in-depth option: a dedicated read-only Neo4j role, limited on Community single-DB, so the tool layer is the real boundary.)
+ 
+ ### 4.3 Effort estimate
+ 
+@@ -175,19 +175,19 @@ A real `run_hunt('credential_tooling')` over stdio returned `pwdumpx.exe` on `SR
+ 
+ ## 5. Gap analysis vs the hackathon's three required demonstrations
+ 
+-### 5.1 Self-correction — **satisfied**
++### 5.1 Self-correction: **satisfied**
+ - SIFT already has a *prompt-level* self-correction directive (CLAUDE.md: "read stderr → hypothesize → correct → retry").
+-- Our side: every MCP tool returns **typed errors** (`error_type ∈ {unknown_hunt, needs_case, write_rejected, timeout, query_error, unknown_host, not_found, bad_request, …}`) with a *what-to-do-instead* message — e.g. a write rejection says "use a MATCH/RETURN query, or call run_hunt()", and a timeout says "anchor on a Host and add a tighter LIMIT". The agent can correct its call rather than give up. **Done.**
++- Our side: every MCP tool returns **typed errors** (`error_type ∈ {unknown_hunt, needs_case, write_rejected, timeout, query_error, unknown_host, not_found, bad_request, …}`) with a *what-to-do-instead* message, e.g. a write rejection says "use a MATCH/RETURN query, or call run_hunt()", and a timeout says "anchor on a Host and add a tighter LIMIT". The agent can correct its call rather than give up. **Done.**
+ 
+-### 5.2 Accuracy validation / artifact traceability — **addressed (v1)**
++### 5.2 Accuracy validation / artifact traceability: **addressed (v1)**
+ - **The chain now exists:** `get_event(event_id)` returns the full source `WindowsEvent` (incl. `channel`/`logChannel` = the source EVTX) for any event id; and the per-event hunts now **carry `event_id` + `channel`** in their rows, so: *hunt row → `event_id` → `get_event` → source EVTX/artifact → (the SIFT tool, e.g. EvtxECmd/plaso, that parsed it)*. Id scheme documented: `<HOSTNAME>:<record_number>`.
+ - **Per-hunt traceability status:**
+   - **Per-event, now carry `event_id`+`channel`:** `failed_logons`, `dns_queries`, `log_cleared`, `powershell_script`; `after_hours_logons` already carried `id`.
+   - **Aggregate/count hunts** (e.g. `service_install`, `event_coverage`, `summary`, `lateral_tool_reuse`): return host + key (eventId/service/tool) sufficient for a follow-up `get_host_summary`/`query_graph`/`get_event`; not per-event by nature.
+   - **Process/file hunts** return `p.id`/`f.path` (their native artifact key).
+-- **Convergence with SIFT:** the artifact `get_event` points to is exactly what a SIFT tool would parse — traceability spans **both** layers.
++- **Convergence with SIFT:** the artifact `get_event` points to is exactly what a SIFT tool would parse. Traceability spans **both** layers.
+ 
+-### 5.3 Analytical reasoning (across hosts/time) — **our core strength; already satisfied**
++### 5.3 Analytical reasoning (across hosts/time): **our core strength; already satisfied**
+ - The graph correlates all 7 hosts + the full timeline; SIFT cannot. `run_hunt`/`query_graph` let the agent answer cross-host/cross-time questions (lateral movement, cross-host tool reuse, the Empire→PsExec→SAM chains documented in `investigation/srl-2018/FINDINGS.md`). This is precisely what single-tool SIFT outputs cannot express, and it's the headline of the extension.
+ 
+ ---
+@@ -196,15 +196,15 @@ A real `run_hunt('credential_tooling')` over stdio returned `pwdumpx.exe` on `SR
+ 
+ 1. **MCP SDK / transport:** Python `mcp`/FastMCP over **stdio** (simplest for Claude Code local) vs HTTP? Recommend stdio.
+ 2. **Registration alongside SIFT without clobbering:** SIFT *overwrites* `~/.claude/settings.json`. If we adopt SIFT's config for the demo, we must **merge** an `mcpServers` block (and re-add our own permissions) rather than let either overwrite the other. Do we ship a combined `settings.json`, or register the MCP server per-project (`.mcp.json` in the case dir)? Recommend per-project `.mcp.json` so we never fight SIFT's global file.
+-3. **Read-only DB user:** Neo4j Community is single-DB/single-user — a true read-only role isn't really available, so the *tool layer* is the enforced boundary. Acceptable? (We should still document it as the boundary and test it hard.)
++3. **Read-only DB user:** Neo4j Community is single-DB/single-user. A true read-only role isn't really available, so the *tool layer* is the enforced boundary. Acceptable? (We should still document it as the boundary and test it hard.)
+ 4. **Traceability scope:** add `event_id`+`channel` to *all 31* hunts, or just the incident-relevant subset for the demo? (Suggest: the subset that appears in FINDINGS, then generalize.)
+-5. **Demo narrative:** run real Protocol SIFT (sandbox or a SIFT VM) on `rd01` per-artifact, then show our MCP tools answering the cross-host question on the same SRL data — does the team want a side-by-side, or our layer driving SIFT tools via the agent?
+-6. **Scope boundary:** the MCP server stays *read-only query/correlation*. Extraction/ingest remains our Phase-1 pipeline (not an MCP tool) — agreed? (Keeps the write path out of the agent entirely — another architectural-guardrail win.)
++5. **Demo narrative:** run real Protocol SIFT (sandbox or a SIFT VM) on `rd01` per-artifact, then show our MCP tools answering the cross-host question on the same SRL data. Does the team want a side-by-side, or our layer driving SIFT tools via the agent?
++6. **Scope boundary:** the MCP server stays *read-only query/correlation*. Extraction/ingest remains our Phase-1 pipeline (not an MCP tool), agreed? (Keeps the write path out of the agent entirely, another architectural-guardrail win.)
+ 7. **Attribution/licensing:** README credits Rob Lee / Protocol SIFT (SANS / teamdfir) explicitly as the framework we extend; confirm wording for the Devpost submission.
+ 
+ ---
+ 
+-## Appendix — recon evidence trail
++## Appendix: recon evidence trail
+ 
+ - `install.sh` read in full (`/tmp/sift-install.sh`): copies `global/*` over `~/.claude/{CLAUDE.md,settings.json,settings.local.json}` (backup-then-overwrite), installs 5 skills + case template + PDF script; installs Claude Code only if absent; WeasyPrint optional/skipped when piped. No MCP/service/DB.
+ - `grep -rniE "mcp|fastmcp|neo4j|graph|cypher|server.py"` across the repo → **0 hits**. Confirms no MCP/graph anywhere.
+diff --git a/src/forensics/README.md b/src/forensics/README.md
+index 801ae21..7c13fb0 100644
+--- a/src/forensics/README.md
++++ b/src/forensics/README.md
+@@ -8,7 +8,7 @@ The Python package behind this project. See the **[top-level README](../../READM
+ |---|---|
+ | `mcp_server.py` | **The read-only `forensics-graph` MCP server** (console script `forensics-mcp`). Five tools: `list_hunts`, `run_hunt`, `get_host_summary`, `get_event`, `query_graph`. |
+ | `hunt.py` | The vetted hunt catalog (`QUERIES`) that `run_hunt` / `list_hunts` expose. |
+-| `neo4j_client.py` | Read-only Neo4j client — READ transactions, server-side timeout, retry. |
++| `neo4j_client.py` | Read-only Neo4j client: READ transactions, server-side timeout, retry. |
+ | `ingest/` | Phase-1 pipeline that builds the graph (one loader per artifact type). Runs out-of-band; never exposed as an agent tool. |
+ | `playbooks/` | Multi-hunt investigation playbooks. |
+ | `correlate.py`, `correlate_artifacts.py` | Post-ingest relationship projection / corroboration. |

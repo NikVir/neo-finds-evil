@@ -8,7 +8,7 @@ The Python package behind this project. See the **[top-level README](../../READM
 |---|---|
 | `mcp_server.py` | **The read-only `forensics-graph` MCP server** (console script `forensics-mcp`). Five tools: `list_hunts`, `run_hunt`, `get_host_summary`, `get_event`, `query_graph`. |
 | `hunt.py` | The vetted hunt catalog (`QUERIES`) that `run_hunt` / `list_hunts` expose. |
-| `neo4j_client.py` | Read-only Neo4j client — READ transactions, server-side timeout, retry. |
+| `neo4j_client.py` | Read-only Neo4j client: READ transactions, server-side timeout, retry. |
 | `ingest/` | Phase-1 pipeline that builds the graph (one loader per artifact type). Runs out-of-band; never exposed as an agent tool. |
 | `playbooks/` | Multi-hunt investigation playbooks. |
 | `correlate.py`, `correlate_artifacts.py` | Post-ingest relationship projection / corroboration. |
