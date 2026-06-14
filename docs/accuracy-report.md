@@ -98,6 +98,36 @@ We also report the **benign-activity exclusions** the agent made on this case (t
 
 ---
 
+## Evidence Integrity and Bypass Resistance
+
+The integrity question this project has to answer is narrow and concrete: while an autonomous agent is investigating a case, can it alter the evidence it is reasoning over? For neo-finds-evil the answer is enforced in four places, three of which sit below the level of anything the model is told to do. This section documents each control and, more importantly, what happens when a control is deliberately attacked.
+
+### How original data is protected
+
+**The evidence is never in the agent's write path.** Graph construction happens out-of-band, before investigation time. The Phase-1 ingest pipeline reads the disk and memory evidence, runs the SIFT and Volatility extractors, and writes the Neo4j graph. None of that pipeline is exposed to the agent. At investigation time the agent receives a completed, read-only graph and a fixed set of tools; it has no ingest tool, no extractor invocation, and no path back to the source images. The original evidence files sit entirely upstream of anything the agent can reach, so even total compromise of the agent's behavior cannot touch the artifacts the graph was built from.
+
+**No write capability is expressible through MCP.** The forensics-graph MCP server exposes five tools: `list_hunts`, `run_hunt`, `get_host_summary`, `get_event`, and `query_graph`. The first four take fixed-shape arguments (a hunt name, a host name, an event id) and run vetted, parameterized read queries; none of them accepts a query body. There is no create tool, no update tool, no delete tool, and no administrative Neo4j tool. A write is not something the agent can phrase through the tool surface at all, with a single exception: `query_graph` accepts free-form Cypher. Every write-protection control below exists to constrain that one tool.
+
+**query_graph, layer 1: lexical write and DDL rejection.** Before any free-form query is sent to the database, `query_graph` runs a pre-execution check that rejects write and schema-modifying clauses, including `CREATE`, `MERGE`, `SET`, `DELETE`, `DETACH DELETE`, `REMOVE`, and DDL operations such as index or constraint changes. A query containing one is refused before execution and returns the typed error `write_rejected` with remediation guidance, so the agent sees a clear, recoverable signal rather than a silent failure. This guard is treated as defense in depth, not as the real boundary, for the reason given next.
+
+**query_graph, layer 2: read-transaction access-mode backstop.** `query_graph` executes inside a Neo4j transaction opened in READ access mode. This is the control that actually matters. Even if a write clause were to slip past the lexical guard, the Neo4j server itself refuses to execute a write inside a read transaction: the rejection is enforced by the database engine, not by application code or by a string check that could be out-thought. The lexical guard reduces noise and gives the agent a friendly error; the access mode is what makes the guarantee real.
+
+### What happens when the protection is attacked
+
+We did not want to take any of the above on trust, including our own description of it. The write-protection path is tested adversarially at both layers.
+
+The lexical guard is exercised by a battery of write-attempt variants designed to evade a naive string check: mixed casing, inline and block comments, leading whitespace and newlines, multiple statements in one body, write clauses nested inside subqueries, and write keywords positioned where a simple filter might miss them. Each variant is asserted to return `write_rejected`.
+
+The access-mode backstop is tested independently and more aggressively. A live regression test deliberately bypasses the lexical guard and sends real `CREATE` and `SET` statements through the same read-transaction path the agent's queries use, against the running graph. The Neo4j server rejects them by access mode, exactly as designed. This is the test that proves the deepest layer holds on its own, with the application-level guard removed.
+
+That test is also where the project's most useful self-correction happened. The regression test includes a sanity check that removes the guard to confirm the test would actually catch a regression. Running it disproved a claim our own code documentation made: a docstring asserted that the read transaction was "never committed," and the check showed that the Neo4j driver auto-commits a managed transaction on clean exit. The "never committed" reasoning was wrong; the only thing that had ever been stopping a write was the READ access mode. We corrected the documentation to describe the actual mechanism, and the live regression test now permanently guards that layer so the same mistaken assumption cannot quietly return. The correction is preserved in the project's git history. We consider this the most honest evidence in the repository that the read-only guarantee is enforced by architecture rather than by belief.
+
+A real, non-synthetic instance is also recorded. The published MCP execution log from the demonstration investigation contains a genuine `write_rejected` event: during normal reasoning the agent composed a query that tripped the write guard, received the typed rejection, and rewrote the query to stay within the read surface. The protection is not only unit-tested; it fired in a live run, and the agent recovered from it without operator help.
+
+### What we do not claim
+
+Two honest boundaries belong here so a reader does not have to infer them. First, the graph database runs on Neo4j Community Edition, which is single-user and does not support a separate database-level read-only role; the read-only guarantee therefore rests on the session access mode, the tool surface, and the ingest separation, not on a distinct least-privilege database account. Adopting a dedicated read-only role is listed as future hardening. Second, protection of the source evidence files is structural in this prototype: they are out-of-band and unreachable from the agent, but they are not additionally placed under an operating-system immutability control. Both are defensible for this scenario, and both are stated plainly rather than implied.
+
 ## Summary
 
 | Item | Status | Confidence |
